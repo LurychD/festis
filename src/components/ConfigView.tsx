@@ -2923,18 +2923,18 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                 { name: "Three.js", version: "^0.184.0" },
                 { name: "date-fns", version: "^4.1.0" },
                 { name: "topojson-client", version: "^3.1.0" },
-                { name: "CardiganUtils v.2", version: "SECRET" },
+                { name: "FestisUtils v.2", version: "SECRET" },
               ].map((lib, idx) => (
                 <div
                   key={`${lib.name}-${idx}`}
                   className={cn(
                     "flex justify-between items-center px-4 py-3 rounded-xl transition-colors",
-                    lib.name === "CardiganUtils v.2"
+                    lib.name === "FestisUtils v.2"
                       ? "bg-indigo-50 border border-indigo-200 cursor-pointer hover:bg-indigo-100"
                       : "bg-slate-50 border border-slate-200",
                   )}
                   onClick={() => {
-                    if (lib.name === "CardiganUtils v.2") {
+                    if (lib.name === "FestisUtils v.2") {
                       showAlert("Se vienen cositas");
                     }
                   }}
@@ -2942,7 +2942,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                   <span
                     className={cn(
                       "text-[11px] font-black uppercase tracking-widest",
-                      lib.name === "CardiganUtils v.2"
+                      lib.name === "FestisUtils v.2"
                         ? "text-indigo-700"
                         : "text-slate-700",
                     )}
@@ -2952,7 +2952,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
                   <span
                     className={cn(
                       "text-[10px] font-bold px-2 py-1 rounded shadow-sm border",
-                      lib.name === "CardiganUtils v.2"
+                      lib.name === "FestisUtils v.2"
                         ? "text-indigo-500 bg-indigo-100 border-indigo-200"
                         : "text-slate-400 bg-white border-slate-100",
                     )}
@@ -3884,7 +3884,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
               </div>
               <div className="flex items-center justify-between text-slate-600">
                 <span className="font-bold text-[10px] uppercase text-slate-400">Cuenta de Usuario:</span>
-                <span className="font-mono font-semibold text-[10px] text-slate-700">{userEmail || "admin@cardigan.com"}</span>
+                <span className="font-mono font-semibold text-[10px] text-slate-700">{userEmail || "admin@festis.app"}</span>
               </div>
             </div>
 

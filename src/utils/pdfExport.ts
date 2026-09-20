@@ -297,5 +297,5 @@ export const exportPDF = async (festivals: Festival[], userName: string, options
     pdf.text(`Página ${i} de ${totalPages}`, pageWidth - 15, pageHeight - 7, { align: 'right' });
   }
 
-  pdf.save(`cardigan_reporte_${format(new Date(), 'ddMMyyyy_HHmmss')}.pdf`);
+  pdf.save(`festis_reporte_${format(new Date(), 'ddMMyyyy_HHmmss')}.pdf`);
 };

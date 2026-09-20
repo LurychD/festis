@@ -156,7 +156,7 @@ export const PromptSummaryReportCard: React.FC<PromptSummaryReportCardProps> = (
     }
 
     // Document Header
-    output += `# RESUMEN CONSOLIDADO DE FESTIVALES DE CINE - FESTIS CARDIGAN\n`;
+    output += `# RESUMEN CONSOLIDADO DE FESTIVALES DE CINE - FESTIS\n`;
     output += `Generado el: ${dateNow} | Registros incluidos: ${totalCount}\n`;
     output += `Rango de análisis: ${getTimeRangeLabel(timeRange, customDays, customDateFrom, customDateTo)}\n`;
     output += `================================================================================\n\n`;

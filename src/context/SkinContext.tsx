@@ -11,20 +11,20 @@ export interface SkinDefinition {
 
 export const REGISTERED_SKINS: SkinDefinition[] = [
   {
-    id: 'cardigan',
-    name: 'Cardigan',
+    id: 'festis',
+    name: 'Festis',
     badge: 'Oficial',
     previewColors: ['#fbcfe8', '#bae6fd', '#fef08a', '#e91e63'],
   },
   {
-    id: 'cardigan-noche',
-    name: 'Cardigan Noche',
+    id: 'festis-noche',
+    name: 'Festis Noche',
     badge: 'WiP',
     previewColors: ['#0f172a', '#1e293b', '#e91e63', '#38bdf8'],
   },
   {
-    id: 'cardigan-boceto',
-    name: 'Cardigan Ilustración',
+    id: 'festis-boceto',
+    name: 'Festis Ilustración',
     badge: 'WiP',
     previewColors: ['#eaf2f8', '#d3e4f0', '#2d3e50', '#5b82a6'],
   },
@@ -37,7 +37,7 @@ interface SkinContextType {
 }
 
 const SkinContext = createContext<SkinContextType>({
-  activeSkin: 'cardigan',
+  activeSkin: 'festis',
   setActiveSkin: async () => {},
   skins: REGISTERED_SKINS,
 });
@@ -47,13 +47,17 @@ export const useSkin = () => useContext(SkinContext);
 export const SkinProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
   const [activeSkin, setActiveSkinState] = useState<string>(() => {
-    return localStorage.getItem('festis_active_skin') || 'cardigan';
+    const saved = localStorage.getItem('festis_active_skin');
+    if (saved === 'cardigan') return 'festis';
+    if (saved === 'cardigan-noche') return 'festis-noche';
+    if (saved === 'cardigan-boceto') return 'festis-boceto';
+    return saved || 'festis';
   });
 
   useEffect(() => {
     document.documentElement.setAttribute('data-skin', activeSkin);
     document.body.setAttribute('data-skin', activeSkin);
-    if (activeSkin === 'cardigan-noche') {
+    if (activeSkin === 'festis-noche' || activeSkin === 'cardigan-noche') {
       document.documentElement.classList.add('dark');
       document.body.classList.add('dark');
     } else {

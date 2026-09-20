@@ -17,9 +17,11 @@ export function useFirestoreSyncDoc<T>(path: string, initialData: T, options?: {
       setIsLocalMode(activeLocal);
     };
 
+    window.addEventListener('festis:sync-mode-change', handleSyncModeChange);
     window.addEventListener('cardigan:sync-mode-change', handleSyncModeChange);
     window.addEventListener('storage', handleSyncModeChange);
     return () => {
+      window.removeEventListener('festis:sync-mode-change', handleSyncModeChange);
       window.removeEventListener('cardigan:sync-mode-change', handleSyncModeChange);
       window.removeEventListener('storage', handleSyncModeChange);
     };

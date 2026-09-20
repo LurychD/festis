@@ -22,6 +22,7 @@ export const NetworkStatusBadge: React.FC = () => {
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('festis:sync-mode-change', handleSyncModeChange);
     window.addEventListener('cardigan:sync-mode-change', handleSyncModeChange);
     window.addEventListener('storage', handleSyncModeChange);
 
@@ -35,6 +36,7 @@ export const NetworkStatusBadge: React.FC = () => {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('festis:sync-mode-change', handleSyncModeChange);
       window.removeEventListener('cardigan:sync-mode-change', handleSyncModeChange);
       window.removeEventListener('storage', handleSyncModeChange);
       window.removeEventListener('keydown', handleKeyDown);
@@ -45,6 +47,7 @@ export const NetworkStatusBadge: React.FC = () => {
     setIsConnecting(true);
     try {
       localStorage.removeItem('__localMode');
+      window.dispatchEvent(new Event('festis:sync-mode-change'));
       window.dispatchEvent(new Event('cardigan:sync-mode-change'));
       setIsLocalMode(false);
       setTimeout(() => {
@@ -130,7 +133,7 @@ export const NetworkStatusBadge: React.FC = () => {
                     {isLocalMode ? 'Modo Local (Caché)' : 'Nube (Firestore)'}
                   </p>
                   <p className="text-[11px] text-slate-500 font-medium">
-                    {isLocalMode ? 'Datos en memoria local' : 'Base de datos: festis-cardigan-db'}
+                    {isLocalMode ? 'Datos en memoria local' : 'Base de datos: festis-db-a'}
                   </p>
                 </div>
               </div>
@@ -151,7 +154,7 @@ export const NetworkStatusBadge: React.FC = () => {
                 </p>
               ) : (
                 <p>
-                  Estás conectado en tiempo real a Firebase Firestore (base <span className="font-mono font-semibold text-emerald-700">festis-cardigan-db</span>). Todos los festivales, ediciones y estados se sincronizan directamente con la base de datos central.
+                  Estás conectado en tiempo real a Firebase Firestore (base <span className="font-mono font-semibold text-emerald-700">festis-db-a</span>). Todos los festivales, ediciones y estados se sincronizan directamente con la base de datos central.
                 </p>
               )}
 

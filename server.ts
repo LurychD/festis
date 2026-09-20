@@ -99,7 +99,7 @@ async function sendPushNotifications(title: string, body: string, userTokens: st
       if (invalidTokens.length > 0 && userEmail) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
+          const db = getFirestore(firebaseApp, 'festis-db-a');
           const docRef = db.collection('fcm_tokens').doc(userEmail);
           const docSnap = await docRef.get();
           if (docSnap.exists) {
@@ -126,7 +126,7 @@ async function runDailyCron(forceRun: boolean = false) {
   }
   try {
     const firebaseApp = getApp();
-    const db = getFirestore(firebaseApp, 'festis-cardigan');
+    const db = getFirestore(firebaseApp, 'festis-db-a');
 
     const now = new Date();
     const currentHourStr = now.getHours().toString().padStart(2, '0');
@@ -150,8 +150,8 @@ async function runDailyCron(forceRun: boolean = false) {
 
     const allEmails = Array.from(new Set([...Object.keys(userTokensMap), ...Object.keys(userPrefsMap)]));
 
-    // 3. Fetch festivals
-    const festSnap = await db.collection('festivals').get();
+    // 3. Fetch festivals across all project subcollections (multi-tenant)
+    const festSnap = await db.collectionGroup('festivals').get();
 
     // Helper to calculate days diff
     const diffDays = (dateStr: string) => {
@@ -293,7 +293,7 @@ async function startServer() {
       if (isFirebaseAdminConfigured) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
+          const db = getFirestore(firebaseApp, 'festis-db-a');
 
           // Guardar registro de la auditoría y solicitud OTP
           await db.collection('audit_logs').add({
@@ -550,7 +550,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       }
 
       const firebaseApp = getApp();
-      const db = getFirestore(firebaseApp, 'festis-cardigan');
+      const db = getFirestore(firebaseApp, 'festis-db-a');
       const tokenRef = db.collection('fcm_tokens').doc(email);
       
       await tokenRef.set({
@@ -573,7 +573,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       }
       const { email } = req.body;
       const firebaseApp = getApp();
-      const db = getFirestore(firebaseApp, 'festis-cardigan');
+      const db = getFirestore(firebaseApp, 'festis-db-a');
       
       const tokenSnap = await db.collection('fcm_tokens').doc(email).get();
       if (!tokenSnap.exists) {
@@ -605,7 +605,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       }
       const { title, description, author } = req.body;
       const firebaseApp = getApp();
-      const db = getFirestore(firebaseApp, 'festis-cardigan');
+      const db = getFirestore(firebaseApp, 'festis-db-a');
 
       // Identify devs/admins to send push to
       const membersSnap = await db.collection('authmembers').get();
@@ -650,7 +650,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
     res.json({
       openapi: "3.0.0",
       info: {
-        title: "Festis Cardigan API para Gemini Spark",
+        title: "Festis API para Gemini Spark",
         description: "API de integración directa con Gemini Spark y Gems para consulta de festivales y convocatorias.",
         version: "1.0.0"
       },
@@ -717,7 +717,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       if (isFirebaseAdminConfigured) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
+          const db = getFirestore(firebaseApp, 'festis-db-a');
           const sparkDoc = await db.collection('system_settings').doc('gemini_spark').get();
           if (sparkDoc.exists) {
             const data = sparkDoc.data();
@@ -741,8 +741,8 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       if (isFirebaseAdminConfigured) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
-          const snap = await db.collection('festivals').get();
+          const db = getFirestore(firebaseApp, 'festis-db-a');
+          const snap = await db.collectionGroup('festivals').get();
           snap.forEach(doc => {
             const d = doc.data();
             festivalsData.push({
@@ -764,7 +764,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       }
 
       // Format as clean Markdown document
-      let md = `# FESTIS CARDIGAN - BASE DE DATOS DE FESTIVALES Y CONVOCATORIAS\n`;
+      let md = `# FESTIS - BASE DE DATOS DE FESTIVALES Y CONVOCATORIAS\n`;
       md += `Fecha de actualización: ${new Date().toLocaleDateString('es-AR')} ${new Date().toLocaleTimeString('es-AR')}\n`;
       md += `Total de convocatorias: ${festivalsData.length}\n\n`;
       md += `---\n\n`;
@@ -788,7 +788,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       if (isFirebaseAdminConfigured) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
+          const db = getFirestore(firebaseApp, 'festis-db-a');
           await db.collection('system_settings').doc('gemini_spark_last_access').set({
             timestamp: new Date().toISOString(),
             query: "Lectura directa Markdown (/api/spark/markdown)",
@@ -820,7 +820,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       if (isFirebaseAdminConfigured) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
+          const db = getFirestore(firebaseApp, 'festis-db-a');
           const sparkDoc = await db.collection('system_settings').doc('gemini_spark').get();
           if (sparkDoc.exists) {
             const data = sparkDoc.data();
@@ -842,8 +842,8 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       if (isFirebaseAdminConfigured) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
-          const snap = await db.collection('festivals').get();
+          const db = getFirestore(firebaseApp, 'festis-db-a');
+          const snap = await db.collectionGroup('festivals').get();
           snap.forEach(doc => {
             const d = doc.data();
             festivalsData.push({
@@ -873,7 +873,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       if (isFirebaseAdminConfigured) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
+          const db = getFirestore(firebaseApp, 'festis-db-a');
           await db.collection('system_settings').doc('gemini_spark_last_access').set({
             timestamp: new Date().toISOString(),
             query: req.query.status ? `Consulta estado ${req.query.status}` : "Consulta directa JSON de festivales",
@@ -884,7 +884,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       }
 
       return res.json({
-        app: "Festis Cardigan",
+        app: "Festis",
         timestamp: new Date().toISOString(),
         total: festivalsData.length,
         festivals: festivalsData
@@ -912,7 +912,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       if (isFirebaseAdminConfigured) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
+          const db = getFirestore(firebaseApp, 'festis-db-a');
           const sparkDoc = await db.collection('system_settings').doc('gemini_spark').get();
           if (sparkDoc.exists) {
             const data = sparkDoc.data();
@@ -953,8 +953,8 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       if (isFirebaseAdminConfigured) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
-          const snap = await db.collection('festivals').limit(100).get();
+          const db = getFirestore(firebaseApp, 'festis-db-a');
+          const snap = await db.collectionGroup('festivals').limit(100).get();
           snap.forEach(doc => {
             const data = doc.data();
             festivalsData.push({
@@ -980,7 +980,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       const { GoogleGenAI } = await import("@google/genai");
       const ai = new GoogleGenAI({ apiKey: geminiApiKey });
 
-      const promptContext = `Eres el asistente oficial de backend Gemini Spark operando en MODO LECTURA para Festis Cardigan.
+      const promptContext = `Eres el asistente oficial de backend Gemini Spark operando en MODO LECTURA para Festis.
 Tu función es responder al usuario en lenguaje natural sobre sus festivales, estado de postulaciones y cierres.
 
 Datos actuales de festivales en la plataforma (${festivalsData.length} festivales cargados):
@@ -1004,7 +1004,7 @@ Responde directamente en español claro, directo y conversacional. No incluyas c
       if (isFirebaseAdminConfigured) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
+          const db = getFirestore(firebaseApp, 'festis-db-a');
           await db.collection('system_settings').doc('gemini_spark_last_access').set({
             timestamp: new Date().toISOString(),
             query: query || "Consulta general de festivales",
@@ -1039,7 +1039,7 @@ Responde directamente en español claro, directo y conversacional. No incluyas c
       if (isFirebaseAdminConfigured) {
         try {
           const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-cardigan');
+          const db = getFirestore(firebaseApp, 'festis-db-a');
           const sparkDoc = await db.collection('system_settings').doc('gemini_spark').get();
           if (sparkDoc.exists) {
             const data = sparkDoc.data();

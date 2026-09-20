@@ -16,57 +16,37 @@ interface Props {
 }
 
 const DEFAULT_DATA: FilmData = {
-  id: 'cardigan_main',
+  id: 'festis_main',
   logoBase64: '',
   bottomLogos: [],
   history: {
-    logline: "A thread of memory brings back Fifi's world of color.",
-    synopsis: "When everything feels empty, Fifi discovers that the memory of her mother, kept within an old cardigan, can bring color and joy back into her life."
+    logline: "Logline de la obra audiovisual.",
+    synopsis: "Sinopsis completa del proyecto para dossiers y convocatorias."
   },
   techSpecs: {
-    title: "CARDIGAN",
-    director: "Lucía Ruocco",
-    date: "November 2025",
+    title: "TITULO DEL FILM",
+    director: "Director / Autor",
+    date: "2026",
     country: "Argentina",
-    format: "Animated Fiction Short Film",
-    technique: "2D Digital frame-by-frame",
-    genre: "Melancholic Drama",
-    duration: "2 minutes 55 seconds",
-    music: "Original Music by Tiziana Martínez",
-    rating: "G (General Audiences)",
-    producedWithin: "The Degree in Integral Filmmaking with Specialization in 3D Animation and Digital Technologies – ENERC"
+    format: "Cortometraje de Ficción / Animación",
+    technique: "Digital / Formato Nativo",
+    genre: "Drama / Ficción",
+    duration: "10 minutos",
+    music: "Música Original",
+    rating: "ATP (Apta para Todo Público)",
+    producedWithin: "Casa Productora / Institución"
   },
-  biography: "Lucía Ruocco is a professional illustrator and a 3D Animation and New Technologies student at ENERC (National School of Film Experimentation and Production, Argentina). She has worked as a freelance illustrator for various editorial projects.\n\nCardigan is her first traditional animation short film. Born from a personal experience, the film explores the transition to adulthood through an intimate lens tied to memory and loss.",
+  biography: "Biografía del director o equipo realizador.",
   credits: [
-    { role: 'Screenplay / Direction / Art Design / Clean Up', name: 'Lucía Ruocco', social: '@pristin.studio' },
-    { role: 'Production / Sound Design / Editing / Clean Up Assistant', name: 'Axel Ibarra', social: '@lurych_art' },
-    { role: 'Art Direction / Art Design / Original Music / Clean Up', name: 'Tiziana Martínez', social: '@tizi.png' },
-    { role: 'Compositing / Art Design / Clean Up', name: 'Amy Gutiérrez Zapico', social: '@angelz.88' },
-    { role: 'Animation Director / Camera Placement / Acting / Choreography / Clean Up', name: 'Emanuel Zalazar', social: '@nekoa.art' }
+    { role: 'Dirección / Guión', name: 'Nombre Director', social: '@director' },
+    { role: 'Producción Ejecutiva', name: 'Nombre Productor', social: '@productor' }
   ],
   contactInfo: [
     {
-      title: 'Shortfilm',
+      title: 'Obra Audiovisual',
       subtitle: '',
       lines: [
-        { label: 'Email', value: 'cardiganshortfilm@gmail.com', isLink: true },
-        { label: 'Instagram', value: 'https://www.instagram.com/cardigan.shortfilm', isLink: true }
-      ]
-    },
-    {
-      title: 'Producer',
-      subtitle: 'Axel Ibarra',
-      lines: [
-        { label: 'Email', value: 'axeldibarra@gmail.com', isLink: true },
-        { label: 'Phone', value: '+54 9 223 521-4428' }
-      ]
-    },
-    {
-      title: 'Director',
-      subtitle: 'Lucía Ruocco',
-      lines: [
-        { label: 'Email', value: 'luciaruocco1313@gmail.com', isLink: true },
-        { label: 'Phone', value: '+54 9 223 582-5944' }
+        { label: 'Email', value: 'contacto@festis.app', isLink: true }
       ]
     }
   ]
@@ -76,7 +56,7 @@ export const FilmDataView: React.FC<Props> = ({ isAuthorized, filmData, setFilmD
   const [activeLang, setActiveLang] = useState<string>(filmData[0]?.lang || 'es');
   const availableLangs = Array.from(new Set([...filmData.map(d => d.lang || 'es'), 'es', 'en', 'fr']));
   
-  const currentData = filmData.find(d => (d.lang || 'es') === activeLang) || { ...DEFAULT_DATA, lang: activeLang, id: `cardigan_${activeLang}`, accentColor: '#a855f7' };
+  const currentData = filmData.find(d => (d.lang || 'es') === activeLang) || { ...DEFAULT_DATA, lang: activeLang, id: `festis_${activeLang}`, accentColor: '#a855f7' };
   
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<FilmData>(currentData);
@@ -151,7 +131,7 @@ export const FilmDataView: React.FC<Props> = ({ isAuthorized, filmData, setFilmD
           if(output) {
               const translated = JSON.parse(output);
               const targetLangId = targetLanguage.toLowerCase().substring(0, 2);
-              const newDraft = { ...draft, id: `cardigan_${targetLangId}`, lang: targetLangId };
+              const newDraft = { ...draft, id: `festis_${targetLangId}`, lang: targetLangId };
               
               newDraft.history = translated.history;
               newDraft.techSpecs = translated.techSpecs;

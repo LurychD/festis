@@ -5,7 +5,7 @@ import { X, FileDown, Loader2, Map as MapIcon } from 'lucide-react';
 import { Festival, FestivalStatus } from '../types';
 import jsPDF from 'jspdf';
 import { format, parseISO } from 'date-fns';
-import * as topojsonClient from 'topojson-client';
+import { feature as topojsonFeature } from 'topojson-client';
 
 const formatFestDate = (dStr?: string) => {
     if (!dStr) return '';
@@ -88,13 +88,7 @@ export const MapReportModal: React.FC<MapReportModalProps> = ({ isOpen, onClose,
             }
             const topo = await hr.json();
             const objName = Object.keys(topo.objects)[0];
-            const featureFn = (topojsonClient as any).feature || (topojsonClient as any).default?.feature;
-            if (!featureFn) {
-                console.error("topojson.feature is not available", topojsonClient);
-                setStatesGeoJson(null);
-                return;
-            }
-            const geojson = featureFn(topo, topo.objects[objName] as any);
+            const geojson = topojsonFeature(topo, topo.objects[objName] as any);
             setStatesGeoJson(geojson);
         } catch (e) {
             console.warn("Failed to load states boundaries", e);

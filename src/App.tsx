@@ -1172,7 +1172,7 @@ export default function App() {
 
     const { default: JSZip } = await import("jszip");
     const zip = new JSZip();
-    zip.file("cardigan_db_full.json", JSON.stringify(exportData, null, 2));
+    zip.file("festis_db_full.json", JSON.stringify(exportData, null, 2));
 
     // Add collections separately
     zip.file("festivals.json", JSON.stringify(festivals, null, 2));
@@ -1194,7 +1194,7 @@ export default function App() {
     const url = URL.createObjectURL(content);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `cardigan_backup_${format(new Date(), "yyyyMMdd_HHmm")}.zip`;
+    link.download = `festis_backup_${format(new Date(), "yyyyMMdd_HHmm")}.zip`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -1280,7 +1280,7 @@ export default function App() {
 
     XLSX.writeFile(
       wb,
-      `cardigan_db_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`,
+      `festis_db_${format(new Date(), "yyyyMMdd_HHmm")}.xlsx`,
     );
   };
 
@@ -1300,7 +1300,7 @@ export default function App() {
     link.setAttribute("href", dataStr);
     link.setAttribute(
       "download",
-      `cardigan_${collectionName}_${format(new Date(), "yyyyMMdd_HHmm")}.json`,
+      `festis_${collectionName}_${format(new Date(), "yyyyMMdd_HHmm")}.json`,
     );
     document.body.appendChild(link);
     link.click();
@@ -1317,7 +1317,7 @@ export default function App() {
         const zip = new JSZip();
         const loadedZip = await zip.loadAsync(file);
 
-        let targetFile = loadedZip.file("cardigan_db_full.json");
+        let targetFile = loadedZip.file("festis_db_full.json") || loadedZip.file("cardigan_db_full.json");
         if (!targetFile) {
           // If the zip was packed differently, find the first JSON file
           const files = Object.keys(loadedZip.files);

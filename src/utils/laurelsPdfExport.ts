@@ -145,9 +145,9 @@ const generateVectorLaurelPng = (isWinner: boolean): string => {
     ctx.fillStyle = grad;
     ctx.strokeStyle = '#78350F'; // warm bronze border
   } else {
-    // Cardigan Pink Multi-Stop Gradient
+    // Festis Pink Multi-Stop Gradient
     grad.addColorStop(0, '#9D174D'); // pink-800 shadow
-    grad.addColorStop(0.25, '#E91E63'); // cardigan pink
+    grad.addColorStop(0.25, '#E91E63'); // festis pink
     grad.addColorStop(0.45, '#F472B6'); // pink-400 highlight
     grad.addColorStop(0.65, '#FDF2F8'); // pink-50 warm glow
     grad.addColorStop(0.85, '#EC4899'); // pink-500
@@ -307,7 +307,7 @@ export const exportLaurelsPDF = async (festivals: Festival[], userName: string) 
   const pageWidth = pdf.internal.pageSize.getWidth(); // ~210mm
   const pageHeight = pdf.internal.pageSize.getHeight(); // ~297mm
 
-  // Load Cardigan's branding logo
+  // Load Festis's branding logo
   const logoImgLoaded = await loadImg('/images/logo.png');
 
   // Filter festivals that are Selected, Projected, or Won

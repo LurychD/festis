@@ -22,7 +22,7 @@ export const BugTrackerView: React.FC<BugTrackerProps> = ({ bugs, setBugs, showA
     const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(bugs, null, 2));
     const link = document.createElement('a');
     link.setAttribute("href", dataStr);
-    link.setAttribute("download", `cardigan_bugs_${format(new Date(), 'yyyyMMdd_HHmm')}.json`);
+    link.setAttribute("download", `festis_bugs_${format(new Date(), 'yyyyMMdd_HHmm')}.json`);
     document.body.appendChild(link);
     link.click();
     link.remove();
