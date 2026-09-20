@@ -1,0 +1,51 @@
+import { Festival, FestivalStatus, Task, AppNote, AppMember } from './types';
+import { Dispatch, SetStateAction } from 'react';
+
+export type View = 'festivals' | 'calendar' | 'stats' | 'notes' | 'details' | 'dashboard' | 'members' | 'help' | 'tasks';
+
+export interface AppProps {
+  festivals: Festival[];
+  setFestivals: Dispatch<SetStateAction<Festival[]>>;
+  view: View;
+  setView: (val: View) => void;
+  selectedFestival: Festival | null;
+  setSelectedFestival: Dispatch<SetStateAction<Festival | null>>;
+  isAuthorized: boolean;
+  userName: string;
+  userEmail: string;
+  promptConfig: any;
+  setPromptConfig: Dispatch<SetStateAction<any>>;
+  confirmConfig: any;
+  setConfirmConfig: Dispatch<SetStateAction<any>>;
+  isDebugMode: boolean;
+  setIsExcelModalOpen: Dispatch<SetStateAction<boolean>>;
+  setIsPdfModalOpen: Dispatch<SetStateAction<boolean>>;
+  exportCSV: () => void;
+  handleExportPDF: (options?: any) => void;
+  setModalType: Dispatch<SetStateAction<"create" | "edit">>;
+  setIsModalOpen: Dispatch<SetStateAction<boolean>>;
+  handleDeleteFestival: (id: string) => void;
+  handleAddTask: (festId: string, title: string) => void;
+  handleEditTask: (festId: string, taskId: string, newTitle: string) => void;
+  handleDeleteTask: (festId: string, taskId: string) => void;
+  handleConfigTaskDeadline: (festId: string, taskId: string, d: string) => void;
+  toggleTask: (festId: string, taskId: string) => void;
+  members: AppMember[];
+  setMembers: Dispatch<SetStateAction<AppMember[]>>;
+  notes: AppNote[];
+  setNotes: Dispatch<SetStateAction<AppNote[]>>;
+  search: string;
+  setSearch: Dispatch<SetStateAction<string>>;
+  filterStatus: string;
+  setFilterStatus: Dispatch<SetStateAction<string>>;
+  taskSearch: string;
+  setTaskSearch: Dispatch<SetStateAction<string>>;
+  currentMonthDate: Date;
+  setCurrentMonthDate: Dispatch<SetStateAction<Date>>;
+  selectedCalendarDate: Date | null;
+  setSelectedCalendarDate: Dispatch<SetStateAction<Date | null>>;
+  excelImportStats: any;
+  setExcelImportStats: Dispatch<SetStateAction<any>>;
+  showAlert: (title: string) => void;
+  handleUpdateObservations?: (festId: string, obs: string) => void;
+}

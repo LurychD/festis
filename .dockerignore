@@ -1,0 +1,8 @@
+# Archivos y carpetas ignorados al construir la imagen Docker
+node_modules
+.git
+.github
+dist
+.env
+.env.local
+*.log

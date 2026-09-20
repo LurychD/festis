@@ -1,0 +1,36 @@
+rules_version = '2';
+service firebase.storage {
+  // Reglas de seguridad para el bucket multi-tenant 'festis-bucket-a'
+  match /b/{bucket}/o {
+
+    // Comprueba si el usuario se encuentra autenticado con cuenta válida
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Comprueba membresía contra el documento del proyecto en la base 'festis-db-a'
+    function isProjectMember(projectId) {
+      return isSignedIn() && (
+        request.auth.token.email == 'axeldibarra@gmail.com' ||
+        request.auth.token.email == 'luciaruocco1313@gmail.com' ||
+        firestore.get(/databases/festis-db-a/documents/projects/$(projectId)).data.authorizedUsers.hasAny([request.auth.token.email])
+      );
+    }
+
+    // Archivos y material audiovisual de proyectos (/projects/{projectId}/{allPaths=**})
+    // Incluye: icon, theme, laureles, gallery, film_data
+    match /projects/{projectId}/{allPaths=**} {
+      // Lectura permitida a los miembros autorizados del proyecto
+      allow read: if isProjectMember(projectId);
+
+      // Escritura y reemplazo permitidos a miembros, con límite de tamaño de hasta 15MB
+      allow write: if isProjectMember(projectId)
+        && request.resource.size <= 15 * 1024 * 1024; // Validación estricta: 15 Megabytes
+    }
+
+    // Bloqueo total para cualquier ruta fuera del esquema de proyectos
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

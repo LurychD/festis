@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/png" href="/images/favicon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#e91e63" />
+    <title>Festis: Cardigan</title>
+    <style>
+      @keyframes splashGradientAnim {
+        0% { background-position: 0% 50%; }
+        50% { background-position: 100% 50%; }
+        100% { background-position: 0% 50%; }
+      }
+      @keyframes splashSpinAnim {
+        to { transform: rotate(360deg); }
+      }
+      #splash-screen {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(-45deg, #fce7f3, #e0e7ff, #e0f2fe, #fef3c7, #fce7f3);
+        background-size: 400% 400%;
+        animation: splashGradientAnim 12s ease infinite;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        user-select: none;
+        -webkit-user-select: none;
+        z-index: 999999;
+      }
+      .splash-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+        padding: 32px 24px;
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.45);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.6);
+        box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.07);
+        max-width: 320px;
+        width: 88%;
+      }
+      .splash-title {
+        font-size: 24px;
+        font-weight: 700;
+        color: #1e293b;
+        letter-spacing: -0.02em;
+        margin-bottom: 24px;
+      }
+      .splash-spinner {
+        width: 48px;
+        height: 48px;
+        border: 4px solid rgba(233, 30, 99, 0.2);
+        border-top-color: #e91e63;
+        border-radius: 50%;
+        animation: splashSpinAnim 0.85s linear infinite;
+        margin-bottom: 20px;
+      }
+      .splash-status {
+        font-size: 13px;
+        font-weight: 600;
+        color: #475569;
+        line-height: 1.4;
+        min-height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        word-break: break-word;
+        text-align: center;
+      }
+    </style>
+    <script>
+      window.global = window;
+    </script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('Service Worker registrado con éxito:', reg))
+            .catch(err => console.error('Error al registrar Service Worker:', err));
+        });
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root">
+      <div id="splash-screen">
+        <div class="splash-card">
+          <div class="splash-title">Cargando...</div>
+          <div class="splash-spinner"></div>
+          <div id="splash-status-text" class="splash-status">Iniciando aplicación...</div>
+          <button id="splash-retry-btn" style="display:none; margin-top:14px; padding:6px 14px; font-size:12px; font-weight:600; color:#e91e63; background:rgba(255,255,255,0.85); border:1px solid #e91e63; border-radius:12px; cursor:pointer;" onclick="window.location.reload(true)">Recargar página</button>
+          <button id="splash-local-btn" style="display:none; margin-top:8px; padding:6px 14px; font-size:11px; font-weight:500; color:#475569; background:rgba(255,255,255,0.7); border:1px solid #cbd5e1; border-radius:12px; cursor:pointer;" onclick="localStorage.setItem('__localMode','true');window.location.reload();">Modo sin conexión</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function() {
+        const statusEl = document.getElementById('splash-status-text');
+        const retryBtn = document.getElementById('splash-retry-btn');
+        const localBtn = document.getElementById('splash-local-btn');
+        if (!statusEl) return;
+        let loadedCount = 0;
+
+        window.__setSplashStatus = function(msg) {
+          if (statusEl) statusEl.textContent = msg;
+        };
+
+        window.addEventListener('error', function(e) {
+          if (statusEl) {
+            statusEl.style.color = '#e11d48';
+            statusEl.textContent = 'Error de carga: ' + (e.message || 'Fallo de red móvil');
+          }
+          if (retryBtn) retryBtn.style.display = 'inline-block';
+          if (localBtn) localBtn.style.display = 'inline-block';
+        });
+
+        window.addEventListener('unhandledrejection', function(e) {
+          if (statusEl) {
+            statusEl.style.color = '#e11d48';
+            statusEl.textContent = 'Aviso de red: ' + (e.reason?.message || e.reason || 'Reintentando...');
+          }
+          if (retryBtn) retryBtn.style.display = 'inline-block';
+          if (localBtn) localBtn.style.display = 'inline-block';
+        });
+
+        if (typeof PerformanceObserver !== 'undefined') {
+          try {
+            const observer = new PerformanceObserver((list) => {
+              const entries = list.getEntries();
+              for (const entry of entries) {
+                loadedCount++;
+                const name = entry.name || '';
+                const file = name.split('/').pop()?.split('?')[0] || '';
+                if (file) {
+                  const display = file.length > 24 ? file.slice(0, 21) + '...' : file;
+                  statusEl.textContent = 'Cargando ' + display + ' (' + loadedCount + ')';
+                }
+              }
+            });
+            observer.observe({ entryTypes: ['resource'] });
+          } catch (e) {}
+        }
+
+        setTimeout(function() {
+          const splash = document.getElementById('splash-screen');
+          if (splash && statusEl && !statusEl.textContent.includes('Error')) {
+            statusEl.textContent = 'Iniciando módulos...';
+          }
+        }, 3000);
+
+        setTimeout(function() {
+          const splash = document.getElementById('splash-screen');
+          if (splash && retryBtn) {
+            retryBtn.style.display = 'inline-block';
+          }
+          if (splash && localBtn) {
+            localBtn.style.display = 'inline-block';
+          }
+        }, 4500);
+      })();
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

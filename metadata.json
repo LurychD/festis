@@ -1,0 +1,10 @@
+{
+  "name": "Festis",
+  "description": "Gestión y distribución audiovisual para festivales ",
+  "requestFramePermissions": [
+    "screen-wake-lock"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

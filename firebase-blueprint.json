@@ -1,0 +1,358 @@
+{
+  "entities": {
+    "Festival": {
+      "title": "Festival",
+      "description": "A film festival entity",
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "country": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "deadline": {
+          "type": "string"
+        },
+        "newsDate": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string"
+        },
+        "nomination": {
+          "type": "string"
+        },
+        "link": {
+          "type": "string"
+        },
+        "platform": {
+          "type": "string"
+        },
+        "price": {
+          "type": "string"
+        },
+        "observations": {
+          "type": "string"
+        },
+        "projectionDate": {
+          "type": "string"
+        },
+        "projectionLocation": {
+          "type": "string"
+        },
+        "createdBy": {
+          "type": "string"
+        },
+        "createdAt": {
+          "type": "number"
+        },
+        "updatedAt": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "name",
+        "country",
+        "type",
+        "status"
+      ]
+    },
+    "Task": {
+      "title": "Task",
+      "description": "A task associated with a festival",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "completed": {
+          "type": "boolean"
+        },
+        "dueDate": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "completed"
+      ]
+    },
+    "AppNote": {
+      "title": "AppNote",
+      "description": "A note",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "color": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "content",
+        "date",
+        "author"
+      ]
+    },
+    "BugTicket": {
+      "title": "BugTicket",
+      "description": "A bug tracker ticket",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string"
+        },
+        "dateReported": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "status",
+        "priority",
+        "dateReported"
+      ]
+    },
+    "RoadmapItem": {
+      "title": "RoadmapItem",
+      "description": "A roadmap item",
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "quarter": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "title",
+        "description",
+        "status",
+        "quarter"
+      ]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "An audit log record",
+      "type": "object",
+      "properties": {
+        "timestamp": { "type": "string" },
+        "collection": { "type": "string" },
+        "details": { "type": "string" },
+        "user": { "type": "string" }
+      },
+      "required": ["timestamp", "collection", "details", "user"]
+    },
+    "AppMember": {
+      "title": "AppMember",
+      "description": "An application member with access",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string" },
+        "authorizedEmails": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "required": ["name", "email", "authorizedEmails", "role"]
+    },
+    "EmailJsConfig": {
+      "title": "EmailJsConfig",
+      "description": "EmailJS configuration",
+      "type": "object",
+      "properties": {
+        "serviceId": {
+          "type": "string"
+        },
+        "templateId": {
+          "type": "string"
+        },
+        "publicKey": {
+          "type": "string"
+        }
+      },
+      "required": []
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "A system notification",
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "date": {
+          "type": "string"
+        },
+        "read": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "type",
+        "title",
+        "message",
+        "date",
+        "read"
+      ]
+    },
+    "UserEasterEggs": {
+      "title": "UserEasterEggs",
+      "description": "A user's unlocked easter eggs tracker",
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string"
+        },
+        "unlockedEggs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "lastUpdated": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "email",
+        "unlockedEggs",
+        "lastUpdated"
+      ]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "User preferences including active theme skin",
+      "type": "object",
+      "properties": {
+        "activeSkin": {
+          "type": "string"
+        },
+        "email": {
+          "type": "string"
+        },
+        "updatedAt": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "activeSkin"
+      ]
+    }
+  },
+  "firestore": {
+    "users": {
+      "schema": {
+        "$ref": "#/entities/UserSettings"
+      },
+      "description": "User preferences and skin settings"
+    },
+    "user_easter_eggs": {
+      "schema": {
+        "$ref": "#/entities/UserEasterEggs"
+      },
+      "description": "User custom easter eggs collections"
+    },
+    "festivals": {
+      "schema": {
+        "$ref": "#/entities/Festival"
+      },
+      "description": "List of film festivals"
+    },
+    "festivals/{festivalId}/tasks": {
+      "schema": {
+        "$ref": "#/entities/Task"
+      },
+      "description": "Tasks associated to a specific festival"
+    },
+    "notes": {
+      "schema": {
+        "$ref": "#/entities/AppNote"
+      },
+      "description": "Global notes"
+    },
+    "bugs": {
+      "schema": {
+        "$ref": "#/entities/BugTicket"
+      },
+      "description": "Bug tickets"
+    },
+    "roadmap": {
+      "schema": {
+        "$ref": "#/entities/RoadmapItem"
+      },
+      "description": "Roadmap items"
+    },
+    "auditlogs": {
+      "schema": {
+        "$ref": "#/entities/AuditLog"
+      },
+      "description": "Audit logs"
+    },
+    "authmembers": {
+      "schema": {
+        "$ref": "#/entities/AppMember"
+      },
+      "description": "Authorized members of the app"
+    },
+    "members": {
+      "schema": {
+        "$ref": "#/entities/AppMember"
+      },
+      "description": "Authorized members of the app"
+    },
+    "config": {
+      "schema": {
+        "$ref": "#/entities/EmailJsConfig"
+      },
+      "description": "App configuration"
+    },
+    "notifications": {
+      "schema": {
+        "$ref": "#/entities/Notification"
+      },
+      "description": "System notifications array"
+    }
+  }
+}

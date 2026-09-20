@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  // Reglas de seguridad para la base de datos multi-tenant 'festis-db-a'
+  match /databases/{database}/documents {
+
+    // Funciones globales de autenticación e identidad
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isUserEmail(email) {
+      return isSignedIn() && request.auth.token.email == email;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'axeldibarra@gmail.com' ||
+        request.auth.token.email == 'luciaruocco1313@gmail.com' ||
+        request.auth.uid == 'IslcgZ6p0hRom8hSsZ9scw30tD12'
+      );
+    }
+
+    // Validador de formato seguro para IDs de documentos
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-@\\.]+$');
+    }
+
+    // Comprobación de membresía en proyecto: verifica si el correo del usuario figura en authorizedUsers o es creador
+    function isProjectAuthorized(projectId) {
+      return isSignedIn() && (
+        isAdmin() ||
+        get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy == request.auth.token.email ||
+        get(/databases/$(database)/documents/projects/$(projectId)).data.authorizedUsers.hasAny([request.auth.token.email])
+      );
+    }
+
+    // 1. Colección raíz de Proyectos (/projects/{projectId})
+    match /projects/{projectId} {
+      // Lectura permitida si el usuario figura en authorizedUsers del proyecto, es el creador o es admin
+      allow read: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.createdBy == request.auth.token.email ||
+        (resource.data.authorizedUsers is list && (
+          request.auth.token.email in resource.data.authorizedUsers ||
+          resource.data.authorizedUsers.hasAny([request.auth.token.email])
+        ))
+      );
+
+      // Creación permitida para cualquier usuario autenticado si declara su email como createdBy y figura en authorizedUsers
+      allow create: if isSignedIn() 
+        && isValidId(projectId)
+        && request.resource.data.createdBy == request.auth.token.email
+        && request.resource.data.authorizedUsers is list
+        && (
+          request.resource.data.authorizedUsers.hasAny([request.auth.token.email]) ||
+          request.auth.token.email in request.resource.data.authorizedUsers
+        );
+
+      // Modificación permitida a usuarios autorizados del proyecto, creador o administradores
+      allow update: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.createdBy == request.auth.token.email ||
+        (resource.data.authorizedUsers is list && (
+          request.auth.token.email in resource.data.authorizedUsers ||
+          resource.data.authorizedUsers.hasAny([request.auth.token.email])
+        ))
+      );
+
+      // Eliminación reservada al creador del proyecto o administradores del sistema
+      allow delete: if isSignedIn() && (
+        isAdmin() ||
+        resource.data.createdBy == request.auth.token.email
+      );
+
+      // 2. Subcolecciones jerárquicas recursivas (/projects/{projectId}/{document=**})
+      // Cubre festivals, film_data, distribution_plans, institutions, gallery, social_posts, reminders, notes, roadmap, bugs
+      match /{document=**} {
+        allow read, write: if isProjectAuthorized(projectId);
+      }
+    }
+
+    // 3. Colecciones de catálogo o globales compartidas
+    // Plataformas de inscripción a festivales (FilmFreeway, Festhome, etc.)
+    match /platforms/{platId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Registro global de auditoría
+    match /auditlogs/{logId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+
+    // Miembros autorizados y roles globales de sistema
+    match /authmembers/{memberId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // Tokens FCM para notificaciones push vinculados al email del usuario autenticado
+    match /fcm_tokens/{email} {
+      allow read, write: if isUserEmail(email) || isAdmin();
+    }
+
+    // Desbloqueos de módulos o características por usuario
+    match /user_easter_eggs/{email} {
+      allow read, write: if isUserEmail(email) || isAdmin();
+    }
+
+    // Preferencias y configuración de interfaz por usuario
+    match /users/{userId} {
+      allow read, write: if isSignedIn() && (request.auth.uid == userId || request.auth.token.email == userId || isAdmin());
+    }
+
+    // Por defecto, denegar cualquier acceso no especificado expresamente
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "projects": {
+    "default": "gen-lang-client-0341676723"
+  },
+  "targets": {
+    "gen-lang-client-0341676723": {
+      "firestore": {
+        "main": [
+          "festis-cardigan"
+        ]
+      }
+    }
+  }
+}
