@@ -1,6 +1,6 @@
 # Guía de Contribución al Código
 
-Gracias por contribuir a **Festis Cardigan**. Sigue estos estándares para mantener la calidad y coherencia de la base de código.
+Gracias por contribuir a **Festis**. Sigue estos estándares para mantener la calidad y coherencia de la base de código.
 
 ---
 

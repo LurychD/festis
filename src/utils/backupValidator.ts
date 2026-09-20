@@ -13,7 +13,7 @@ export interface BackupValidationResult {
 }
 
 /**
- * Validador de esquemas para backups JSON de Festis-Cardigan.
+ * Validador de esquemas para backups JSON de Festis.
  * Previene la importación de archivos corruptos o maliciosos.
  */
 export function validateBackupJSON(jsonInput: any): BackupValidationResult {

@@ -38,7 +38,7 @@ export async function uploadFileToStorage(
   } else {
     relativeOrFullPath = arg2;
     onProgress = typeof arg3 === 'function' ? arg3 : undefined;
-    projectId = (typeof window !== 'undefined' && localStorage.getItem('active_project_id')) || 'default_project';
+    projectId = (typeof window !== 'undefined' && (localStorage.getItem('festis_active_project_id') || localStorage.getItem('active_project_id'))) || 'default_project';
   }
 
   if (!projectId || typeof projectId !== 'string' || !projectId.trim()) {
