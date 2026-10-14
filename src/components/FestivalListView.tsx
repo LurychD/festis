@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Bell, Search, MapPin, List, Tag, DollarSign, Calendar as CalendarIcon, ExternalLink, ClipboardList, MonitorPlay, RefreshCw } from 'lucide-react';
+import { Bell, Search, MapPin, List, Tag, DollarSign, Calendar as CalendarIcon, ExternalLink, ClipboardList, MonitorPlay, RefreshCw, Clipboard } from 'lucide-react';
 import { Festival, FestivalStatus } from '../types';
 import { cn, getStatusColorStyles, getStatusIcon, formatDisplayDate } from '../utils/helpers';
 import { INITIAL_FESTIVALS } from '../utils/seedData';
 import { ChangeStatusModal } from './ChangeStatusModal';
+import { useProjectRole } from '../context/ProjectContext';
 
 interface FestivalListViewProps {
   festivals: Festival[];
@@ -79,6 +80,10 @@ export const FestivalListView: React.FC<FestivalListViewProps> = ({
   displayedCount, setDisplayedCount, setSelectedFestival, setView,
   search, searchInObs, handleUpdateStatus
 }) => {
+  const { isOwner, isDistributor } = useProjectRole();
+  const canManageFestivals = isOwner || isDistributor;
+  const canViewFinancials = isOwner || isDistributor;
+
   const filterScrollRef = useRef<HTMLDivElement>(null);
   const [isDraggingFilter, setIsDraggingFilter] = useState(false);
   const [filterStartX, setFilterStartX] = useState(0);
@@ -145,13 +150,23 @@ export const FestivalListView: React.FC<FestivalListViewProps> = ({
         </div>
       </div>
 
-      <div className="w-full flex items-center justify-between mb-4 px-1">
+      <div className="w-full flex items-center justify-between mb-4 px-1 gap-2 flex-wrap">
          <p className="text-xs font-bold text-slate-500">
            <span className="text-[#e91e63] font-black">{filteredFestivals.length}</span> festivales encontrados 
            {filterStatus !== 'all' ? ` bajo el filtro "${filterStatus}"` : ' en total'}
            {dateFilter === 'closing_soon' ? ' (En cierre próx. 30 días)' : ''}
            {dateFilter === 'custom_range' ? ' (Rango de fechas)' : ''}
          </p>
+
+         <button
+           type="button"
+           onClick={() => window.dispatchEvent(new CustomEvent('festis:trigger-clipboard-capture'))}
+           className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-pink-50 text-[#e91e63] border border-pink-100 hover:bg-pink-100/80 active:scale-95 transition-all shadow-xs"
+           title="Analizar texto o enlaces copiados en el portapapeles"
+         >
+           <Clipboard className="w-3.5 h-3.5" />
+           <span>Capturar Portapapeles</span>
+         </button>
       </div>
 
       <div className="space-y-4 relative min-h-[40vh]">
@@ -206,7 +221,7 @@ export const FestivalListView: React.FC<FestivalListViewProps> = ({
                     {(['En Revision', 'Seleccionado', 'Ganado', 'No Seleccionado', 'Proyectado', 'En duda', 'Descalificado', 'Cerrado'].includes(festival.status) && festival.category) && (
                        <span className="flex items-center gap-1"><Tag className="h-3 w-3" /> {highlightText(festival.category, search)}</span>
                     )}
-                    {(['Por enviar', 'En duda', 'No Seleccionado', 'Descalificado', 'En Revision', 'Cerrado'].includes(festival.status) && festival.price) && (
+                    {canViewFinancials && (['Por enviar', 'En duda', 'No Seleccionado', 'Descalificado', 'En Revision', 'Cerrado'].includes(festival.status) && festival.price) && (
                        <span className="flex items-center gap-1"><DollarSign className="h-3 w-3" /> Fee: {festival.price}</span>
                     )}
                   </div>
@@ -293,19 +308,21 @@ export const FestivalListView: React.FC<FestivalListViewProps> = ({
               </div>
               <span 
                 onClick={(e) => {
-                  if (handleUpdateStatus) {
+                  if (canManageFestivals && handleUpdateStatus) {
                     e.stopPropagation();
                     setStatusTargetFestival(festival);
                   }
                 }}
                 className={cn(
-                  "shrink-0 px-3 py-1 rounded-full text-xs font-bold border shadow-sm flex items-center gap-1 hover:scale-105 transition-all cursor-pointer",
+                  "shrink-0 px-3 py-1 rounded-full text-xs font-bold border shadow-sm flex items-center gap-1 transition-all",
                   isClosed
-                    ? "bg-slate-200 text-slate-800 border-slate-400 hover:bg-slate-300"
+                    ? "bg-slate-200 text-slate-800 border-slate-400"
                     : "bg-white/90 text-slate-800",
-                  handleUpdateStatus && "hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300"
+                  canManageFestivals && handleUpdateStatus
+                    ? "hover:scale-105 cursor-pointer hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-300"
+                    : "cursor-default"
                 )}
-                title="Haz clic para cambiar estado con nota"
+                title={canManageFestivals ? "Haz clic para cambiar estado con nota" : "Estado actual de la postulación"}
               >
                 {getStatusIcon(festival.status, 'h-3.5 w-3.5 mr-1')}
                 {festival.status}

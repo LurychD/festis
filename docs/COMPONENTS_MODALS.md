@@ -1,99 +1,67 @@
-# Modales e Interacciones Globales — Guía Detallada de Componentes
+# Modales, Drawers y Gestos Móviles — Guía Detallada de Componentes
 
-Este documento especifica los modales de formulario, diálogos auditables de estado, visores geográficos y la paleta de comandos de `src/components/`, estructurados formalmente sin el uso de viñetas.
-
----
-
-## 🪟 1. FestivalModal.tsx
-
-Ficha Técnica del Componente:
-Ubicación: `src/components/FestivalModal.tsx`  
-Categoría: Modal de Formulario Principal  
-
-Descripción y Arquitectura Explayada:
-FestivalModal es el componente de interfaz encargado de capturar y editar los datos maestros de una postulación. Despliega un formulario enriquecido que incluye campos con validación en tiempo real para evitar la entrada de datos inconsistentes. Permite ingresar el nombre del festival, seleccionar la plataforma de inscripción (FilmFreeway, Shortfilmdepot, Festhome, Movibeta, Envío Directo), definir la categoría de participación, fijar el costo de inscripción (fee) en dólares u otra divisa y establecer las fechas críticas. Integra el subcomponente `PlaceAutocomplete.tsx` conectado a la API de Google Maps Places para autocompletar con precisión la ciudad, provincia y país de la sede del festival.
-
-Módulos Especiales y Detectores Integrados:
-1. Autocompletar Inteligente con IA: Esta función de análisis inteligente se muestra condicionada a la activación previa del interruptor de 'Funciones Experimentales' (`experimentalFeatures` en Configuración).
-2. Badge Interactivo y Detector de Festival de Prueba ("test") para Desarrolladores: Cuando un usuario con permisos o rol de desarrollador abre el formulario, el placeholder del campo de nombre indica "Escribe test". Al ingresar la palabra "test", aparece automáticamente un Badge interactivo (`🧪 Test Badge (Crear Festi)`). Al presionarlo o intentar guardar el formulario, se activa un modal de confirmación con un temporizador regresivo de 3 segundos para prevenir clics accidentales. Al confirmar, se genera un festival de prueba equipado con la botonera de herramientas de testeo interactivo.
-
-Especificación Técnica de Props:
-```typescript
-interface FestivalModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: (festivalData: Partial<Festival>) => Promise<void>;
-  festivalToEdit?: Festival | null;
-}
-```
-
-Flujo de Control y Validación:
-Cuando la propiedad `festivalToEdit` contiene un objeto válido de festival, el modal puebla automáticamente todos los campos del formulario con los valores existentes. Si el usuario intenta guardar una postulación sin completar los campos obligatorios, el modal destaca visualmente los insumos faltantes y bloquea la emisión. Al presionar el botón de guardado, resuelve la promesa `onSave()` sincronizando los datos con Firestore y emitiendo una confirmación toast.
+Este documento especifica la arquitectura de modales, drawers y la orquestación de micro-interacciones táctiles en `src/components/` y `src/hooks/`.
 
 ---
 
-## 🔄 2. ChangeStatusModal.tsx
+## 1. Estandarización de Modales con Framer Motion (AnimatePresence)
 
-Ficha Técnica del Componente:
-Ubicación: `src/components/ChangeStatusModal.tsx`  
-Categoría: Modal Auditable de Estado  
+Todos los modales y diálogos globales del sistema están encapsulados bajo `AnimatePresence` de `motion/react` para garantizar ciclos de vida fluidos tanto en apertura como en cierre:
 
-Descripción y Arquitectura Explayada:
-ChangeStatusModal es el componente garante de la trazabilidad del circuito de distribución. En lugar de permitir una modificación directa y silenciosa del estado de un festival, este modal intercepta la acción para crear un registro auditable completo dentro del sub-arreglo `statusHistory`.
-
-Captura tres elementos indispensables: el nuevo veredicto seleccionado (Por enviar, En revisión, Seleccionado, Ganado, No seleccionado, Descalificado), el timestamp o fecha exacta en que fue notificada la decisión (permitiendo ajustar retroactivamente si la notificación llegó días antes) y una nota explicativa o justificación redactada por el distribuidor (por ejemplo: "Notificado vía correo electrónico por el comite de selección internacional").
-
-Estructura del Registro Generado en `statusHistory`:
-```json
-{
-  "id": "hist_129381",
-  "status": "Seleccionado",
-  "timestamp": "2026-07-30T15:00:00.000Z",
-  "updatedBy": "axeldibarra@gmail.com",
-  "note": "Confirmada selección oficial en competencia internacional."
-}
-```
+- **Backdrop Difuminado Sincronizado:** Cada modal proyecta un fondo con `bg-slate-900/60` (o color de acento) y `backdrop-blur-md`, con transición de desvanecimiento `initial={{ opacity: 0 }}`, `animate={{ opacity: 1 }}`, `exit={{ opacity: 0 }}`.
+- **Transición de Escala y Elevación Elástica:** La superficie de la tarjeta modal entra suavemente con `initial={{ opacity: 0, scale: 0.94, y: 10 }}`, `animate={{ opacity: 1, scale: 1, y: 0 }}` y `exit={{ opacity: 0, scale: 0.94, y: 10 }}` con una curva Bézier elástica `[0.16, 1, 0.3, 1]`, erradicando cualquier desaparición abrupta o parpadeo.
+- **Disciplina de Cero Texto de Relleno:** Se suprimen bajadas descriptivas o subtítulos obvios debajo de los títulos de cada modal, manteniendo una estética sobria y cinematográfica.
 
 ---
 
-## ⌨️ 3. OmniboxModal.tsx
+## 2. Directiva de Ergonomía Móvil y Gestos Táctiles (useDrawerSwipeGesture.ts)
 
-Ficha Técnica del Componente:
-Ubicación: `src/components/OmniboxModal.tsx`  
-Categoría: Paleta de Comandos `Cmd + K`  
+Ubicación: `src/hooks/useDrawerSwipeGesture.ts`  
+Aplicado en: `src/components/ProjectsHomeView.tsx` y `src/App.tsx` (Drawer de la Obra Activa).
 
-Descripción y Arquitectura Explayada:
-OmniboxModal implementa una barra de comandos flotante inspirada en las herramientas de productividad modernas. Escucha continuamente el evento global de teclado `KeyDown` en busca de las combinaciones `Cmd + K` o `Ctrl + K`. Al activarse, despliega una ventana superpuesta con búsqueda difusa que permite al usuario navegar instantáneamente a cualquiera de las 15 vistas, buscar postulaciones específicas por nombre, o ejecutar acciones del sistema como alternar el tema visual o crear una nueva postulación sin necesidad de despegar las manos del teclado.
-
----
-
-## 🚨 4. GlobalModals.tsx
-
-Ficha Técnica del Componente:
-Ubicación: `src/components/GlobalModals.tsx`  
-Categoría: Orquestador de Diálogos y Alertas  
-
-Descripción y Arquitectura Explayada:
-GlobalModals actúa como la central unificada de diálogo del sistema. En lugar de dispersar componentes de alerta y confirmación por toda la aplicación, este orquestador administra de forma centralizada las ventanas emergentes de confirmación de eliminación irreversible, las alertas por pérdida de conexión a internet (modo Offline), los avisos de error crítico en tiempo de ejecución y los cuadros de diálogo para importar o exportar respaldos de seguridad.
+### Parámetros de Operación Táctil:
+1. **Apertura Ergonómica con el Pulgar Derecho:**
+   - **Zona de Activación Estricta:** Se escucha exclusivamente en la mitad inferior de la pantalla (`clientY > window.innerHeight / 2`) y en proximidad al margen derecho (`clientX > window.innerWidth - 65`). Esto previene activaciones involuntarias al interactuar con el encabezado superior o la barra de búsqueda.
+   - **Discriminación de Trayectoria:** Para evitar interferencias con el desplazamiento vertical (scroll de página), se exige que el componente horizontal supere al vertical (`|deltaX| > |deltaY|`) y que el recorrido hacia la izquierda sea contundente (`deltaX < -50px`) en un intervalo de tiempo menor a 650 ms.
+   - **Exclusión de Campos Interactivos:** No se inicia el seguimiento del gesto si el toque inicial se produce sobre elementos de formulario (`<input>`, `<textarea>`, `<select>`).
+2. **Gesto y Arrastre de Cierre (Swipe / Drag to Right):**
+   - Cuando el drawer está desplegado, el usuario puede deslizarlo hacia la derecha (`deltaX > 45px` y `|deltaX| > |deltaY|`) o arrastrarlo físicamente mediante las utilidades `drag="x"` de Framer Motion con límites elásticos para replegarlo de forma natural.
 
 ---
 
-## 🗺️ 5. MapReportModal.tsx
+## 3. Catálogo de Modales del Sistema
 
-Ficha Técnica del Componente:
-Ubicación: `src/components/MapReportModal.tsx`  
-Categoría: Visor Geográfico Interactivo  
+### ProjectModal.tsx
+- Ubicación: `src/components/ProjectModal.tsx`
+- Categoría: Creación y Edición de Obras Audiovisuales
+- Funcionalidad: Captura título, formato de resolución, tasa de fotogramas (FPS), póster/ícono con compresión cliente WebP y paleta cromática personalizada.
 
-Descripción y Arquitectura Explayada:
-MapReportModal proporciona una ventana flotante equipada con un mapa geográfico interactivo alimentado por las APIs de mapas. Proyecta marcadores personalizados sobre las ciudades y países donde el cortometraje o largometraje ha obtenido selecciones oficiales, proyecciones en sala o premios, permitiendo al usuario explorar visualmente el alcance geográfico de la distribución cinematográfica.
+### ReminderModal.tsx
+- Ubicación: `src/components/ReminderModal.tsx`
+- Categoría: Programador de Recordatorios y Notificaciones
+- Funcionalidad: Permite agendar tareas vinculadas a festivales o eventos generales con fecha y hora precisa.
 
----
+### CountdownModal.tsx
+- Ubicación: `src/components/CountdownModal.tsx`
+- Categoría: Temporizador Regresivo de Plazos de Distribución
+- Funcionalidad: Muestra el tiempo restante (días, horas, minutos y segundos) para la resolución de un plan de distribución cinematográfico.
 
-## ⏰ 6. ReminderModal.tsx
+### ChangeStatusModal.tsx
+- Ubicación: `src/components/ChangeStatusModal.tsx`
+- Categoría: Registro Auditable de Estado
+- Funcionalidad: Registra transiciones de veredicto con trazabilidad temporal y notas de postulación.
 
-Ficha Técnica del Componente:
-Ubicación: `src/components/ReminderModal.tsx`  
-Categoría: Programador de Notificaciones Push  
+### LogoutConfirmModal.tsx
+- Ubicación: `src/components/LogoutConfirmModal.tsx`
+- Categoría: Confirmación de Cierre de Sesión Seguro
+- Funcionalidad: Bloqueo de seguridad con cuenta regresiva de 5 segundos para prevenir desconexiones accidentales.
 
-Descripción y Arquitectura Explayada:
-ReminderModal brinda al usuario la capacidad de configurar alertas temporales para convocatorias críticas. Permite programar recordatorios personalizados (por ejemplo, 24 horas antes del cierre de inscripción o 3 días antes del anuncio de seleccionados). Se conecta con el sistema de notificaciones del navegador y con Firebase Cloud Messaging (FCM) para enviar avisos visuales directos.
+### FestivalModal.tsx
+- Ubicación: `src/components/FestivalModal.tsx`
+- Categoría: Gestión Integral de Postulaciones
+- Funcionalidad: Formulario de altas y ediciones de festivales con autocompletado geográfico y panel de pruebas.
+
+### OmniboxModal.tsx
+- Ubicación: `src/components/OmniboxModal.tsx`
+- Categoría: Paleta de Comandos y Búsqueda Rápida
+- Funcionalidad: Acceso por teclado (`Cmd + K`) a todas las secciones y registros de la aplicación.

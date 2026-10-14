@@ -293,13 +293,22 @@ Para garantizar una experiencia fluida sin pantallas en blanco ni bloqueos en di
 
 ---
 
-## 9. Hoja de Ruta: Migración a Multi-Proyecto (Multi-Tenant)
+## 9. Arquitectura Multi-Tenant y Sistema de Layout
 
-Para escalar la aplicación hacia una arquitectura multi-cliente, se planea la siguiente ruta de refactorización:
+La aplicación opera bajo una arquitectura integral multi-obra con aislamiento de datos y ergonomía visual sincronizada:
 
-1. **Jerarquía en Firestore:**
-   - Transicionar de la colección raíz `/festivals` a una estructura aislada por espacio de trabajo: `/projects/{projectId}/festivals/{festivalId}`.
-2. **Contexto Global de Proyecto (`ProjectContext`):**
-   - Implementar un selector de proyectos en `AppHeader` que conmute dinámicamente el `projectId` en los listeners de Firestore.
-3. **Reglas de Seguridad y RBAC:**
-   - Configurar Firestore Rules para validar el token JWT del usuario contra la lista de miembros autorizados `/projects/{projectId}/members/{userId}`.
+1. **Jerarquía en Firestore y Reglas RBAC:**
+   - Estructura aislada por obra audiovisual: `/projects/{projectId}/{subcollection}/{docId}`.
+   - Seguridad granular por UID (`request.auth.uid`) indexado en los arreglos planos del documento: `ownerUids`, `distributorUids`, `collaboratorUids`, `guestUids`.
+2. **Contexto de Proyecto (`ProjectContext`):**
+   - Hook reactivo `useProjectRole()` que computa el rol específico del usuario en la obra activa ('owner', 'distribuidor', 'colaborador', 'guest').
+3. **Calibración del Layout y Prevención de Solapamiento:**
+   - El encabezado flotante `AppHeader` (con altura dinámica entre 190px y 220px) requiere un despeje seguro en el contenedor `<main>` de `pt-52 sm:pt-56` (208px - 224px).
+   - Anchos máximos adaptativos: `max-w-6xl` para dashboards, calendarios y estadísticas; `max-w-7xl` para la pizarra `planning`.
+4. **Armonización Visual del Inicio (`ProjectsHomeView`):**
+   - Unificación de tokens de diseño con el espacio interno: radios `rounded-2xl` y `rounded-3xl`, fondos `bg-white/80 backdrop-blur-xl`, bordes `border-slate-200` y sombras `shadow-sm`.
+   - Drawer lateral reordenado con ergonomía para mano derecha: botón *"Cerrar Sesión"* (con temporizador de seguridad de 5s) en pie de panel, y *"Configuración de la App"* y *"Ayuda"* en la sección principal con botones píldora `rounded-2xl`. Cero leyendas explicativas innecesarias.
+5. **Capa de Animaciones con Framer Motion y Gestos Táctiles Ergonómicos:**
+   - Drawers laterales estandarizados con física spring (`stiffness: 350-360`, `damping: 30-32`), backdrop animado y repliegue por arrastre físico (`drag="x"`).
+   - Hook ergonómico `useDrawerSwipeGesture`: apertura con pulgar derecho restringida a la mitad inferior (`clientY > innerHeight / 2`) y borde derecho (`clientX > innerWidth - 65`) con predominio horizontal estricto (`|deltaX| > |deltaY|` y `deltaX < -50px`), evitando conflictos con scroll vertical.
+   - Todos los modales encapsulados en `AnimatePresence` (`motion/react`) con transiciones suaves de escala y opacidad elástica (`[0.16, 1, 0.3, 1]`).

@@ -365,9 +365,13 @@ Ruta: `/projects/{projectId}`
 | `description` | `string` | Sinopsis o descripción breve del proyecto. |
 | `iconUrl` | `string` | URL en Firebase Storage del isotipo/afiche de la obra. |
 | `theme` | `object` | Identidad cromática (colorDominante, colorSub, colorAcento, tipoFondo, valorFondo). |
-| `authorizedUsers` | `string[]` | Lista de emails autorizados para acceder y editar este proyecto. |
-| `createdBy` | `string` | Email del creador/propietario del proyecto. |
-| `ownerId` | `string` | UID o email del creador/propietario. |
+| `members` | `ProjectMember[]` | Lista estructurada de miembros con roles (`owner`, `distribuidor`, `colaborador`, `guest`). |
+| `ownerUids` | `string[]` | UIDs autorizados con rol Owner (control total, miembros y borrado). |
+| `distributorUids` | `string[]` | UIDs autorizados con rol Distribuidor (festivales y planes de distribución). |
+| `collaboratorUids` | `string[]` | UIDs autorizados con rol Colaborador (roadmap, notas, recordatorios). |
+| `guestUids` | `string[]` | UIDs autorizados con rol Guest (solo lectura restringida). |
+| `authorizedUsers` | `string[]` | Lista de emails autorizados para compatibilidad y consultas `array-contains`. |
+| `createdBy` | `string` | Email del creador/propietario original del proyecto. |
 | `createdAt` | `string` (ISO) | Fecha de alta del proyecto. |
 | `updatedAt` | `string` (ISO) | Fecha de última modificación. |
 
@@ -396,6 +400,7 @@ Ruta: `/{collection}`
 | 4 | `bugs` | Tickets de reporte de incidentes y estado de bugs. |
 | 5 | `roadmap` | Hitos planificados y hoja de ruta del sistema. |
 | 6 | `notifications` | Notificaciones del sistema para el usuario autenticado. |
+| 7 | `project_invitations` | Tokens y registros de Enlaces Mágicos de Invitación. |
 
 ---
 

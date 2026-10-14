@@ -356,9 +356,14 @@ export const AppSettingsView: React.FC<AppSettingsViewProps> = ({ onBackToProjec
           members: [
             {
               email: userEmail,
-              role: 'admin',
+              uid: user.uid,
+              role: 'owner',
             },
           ],
+          ownerUids: [user.uid],
+          distributorUids: [],
+          collaboratorUids: [],
+          guestUids: [],
           authorizedUsers: [userEmail],
           theme: rawProj.theme || defaultTheme,
           tags: Array.isArray(rawProj.tags) ? rawProj.tags : [],

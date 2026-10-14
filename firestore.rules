@@ -9,13 +9,17 @@ service cloud.firestore {
     }
 
     function isUserEmail(email) {
-      return isSignedIn() && request.auth.token.email == email;
+      return isSignedIn() && (
+        request.auth.token.email == email ||
+        request.auth.uid == email ||
+        isAdmin()
+      );
     }
 
+    // Administrador exclusivo del sistema: Axel Ibarra
     function isAdmin() {
       return isSignedIn() && (
         request.auth.token.email == 'axeldibarra@gmail.com' ||
-        request.auth.token.email == 'luciaruocco1313@gmail.com' ||
         request.auth.uid == 'IslcgZ6p0hRom8hSsZ9scw30tD12'
       );
     }
@@ -25,96 +29,207 @@ service cloud.firestore {
       return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-@\\.]+$');
     }
 
-    // Comprobación de membresía en proyecto: verifica si el correo del usuario figura en authorizedUsers o es creador
-    function isProjectAuthorized(projectId) {
+    // Documento del proyecto activo
+    function projectDoc(projectId) {
+      return get(/databases/$(database)/documents/projects/$(projectId)).data;
+    }
+
+    // 1. Jerarquía RBAC Multi-Tenant por UID
+    // Rol: Owner (Control total, miembros, configuración y borrado)
+    function isOwner(projectId) {
       return isSignedIn() && (
         isAdmin() ||
-        get(/databases/$(database)/documents/projects/$(projectId)).data.createdBy == request.auth.token.email ||
-        get(/databases/$(database)/documents/projects/$(projectId)).data.authorizedUsers.hasAny([request.auth.token.email])
+        (projectDoc(projectId).ownerUids is list && request.auth.uid in projectDoc(projectId).ownerUids) ||
+        (request.auth.token.email != null && projectDoc(projectId).createdBy == request.auth.token.email)
       );
     }
 
-    // 1. Colección raíz de Proyectos (/projects/{projectId})
+    // Rol: Distribuidor (Gestión de festivales, postulaciones y planes de distribución)
+    function isDistributor(projectId) {
+      return isOwner(projectId) || (
+        isSignedIn() &&
+        projectDoc(projectId).distributorUids is list &&
+        request.auth.uid in projectDoc(projectId).distributorUids
+      );
+    }
+
+    // Rol: Colaborador (Roadmap, notas, bitácora y recordatorios)
+    function isCollaborator(projectId) {
+      return isDistributor(projectId) || (
+        isSignedIn() &&
+        projectDoc(projectId).collaboratorUids is list &&
+        request.auth.uid in projectDoc(projectId).collaboratorUids
+      );
+    }
+
+    // Rol: Guest / Invitado (Solo lectura de la obra)
+    function isMember(projectId) {
+      return isCollaborator(projectId) || (
+        isSignedIn() && (
+          (projectDoc(projectId).guestUids is list && request.auth.uid in projectDoc(projectId).guestUids) ||
+          (request.auth.token.email != null && (
+            projectDoc(projectId).createdBy == request.auth.token.email ||
+            (projectDoc(projectId).authorizedUsers is list && (
+              request.auth.token.email in projectDoc(projectId).authorizedUsers ||
+              projectDoc(projectId).authorizedUsers.hasAny([request.auth.token.email])
+            ))
+          ))
+        )
+      );
+    }
+
+    // Colección raíz de Proyectos (/projects/{projectId})
     match /projects/{projectId} {
-      // Lectura permitida si el usuario figura en authorizedUsers del proyecto, es el creador o es admin
+      // Lectura permitida a cualquier miembro perteneciente a la obra o admin
       allow read: if isSignedIn() && (
         isAdmin() ||
         resource.data.createdBy == request.auth.token.email ||
+        (resource.data.ownerUids is list && request.auth.uid in resource.data.ownerUids) ||
+        (resource.data.distributorUids is list && request.auth.uid in resource.data.distributorUids) ||
+        (resource.data.collaboratorUids is list && request.auth.uid in resource.data.collaboratorUids) ||
+        (resource.data.guestUids is list && request.auth.uid in resource.data.guestUids) ||
         (resource.data.authorizedUsers is list && (
           request.auth.token.email in resource.data.authorizedUsers ||
           resource.data.authorizedUsers.hasAny([request.auth.token.email])
         ))
       );
 
-      // Creación permitida para cualquier usuario autenticado si declara su email como createdBy y figura en authorizedUsers
+      // Creación: usuarios autenticados que se declaren creadores
       allow create: if isSignedIn() 
         && isValidId(projectId)
-        && request.resource.data.createdBy == request.auth.token.email
-        && request.resource.data.authorizedUsers is list
         && (
-          request.resource.data.authorizedUsers.hasAny([request.auth.token.email]) ||
-          request.auth.token.email in request.resource.data.authorizedUsers
+          isAdmin() ||
+          (request.auth.token.email != null && request.resource.data.createdBy == request.auth.token.email)
         );
 
-      // Modificación permitida a usuarios autorizados del proyecto, creador o administradores
-      allow update: if isSignedIn() && (
-        isAdmin() ||
-        resource.data.createdBy == request.auth.token.email ||
-        (resource.data.authorizedUsers is list && (
-          request.auth.token.email in resource.data.authorizedUsers ||
-          resource.data.authorizedUsers.hasAny([request.auth.token.email])
-        ))
-      );
+      // Modificación de configuración y miembros: Exclusivo de Owners y Admin
+      allow update: if isOwner(projectId);
 
-      // Eliminación reservada al creador del proyecto o administradores del sistema
+      // Eliminación del proyecto: Exclusivo del creador original o Admin
       allow delete: if isSignedIn() && (
         isAdmin() ||
-        resource.data.createdBy == request.auth.token.email
+        (request.auth.token.email != null && resource.data.createdBy == request.auth.token.email)
       );
 
-      // 2. Subcolecciones jerárquicas recursivas (/projects/{projectId}/{document=**})
-      // Cubre festivals, film_data, distribution_plans, institutions, gallery, social_posts, reminders, notes, roadmap, bugs
+      // 2. Subcolecciones con permisos granulares por rol
+
+      // Festivales y postulaciones: Distribuidor y Owner
+      match /festivals/{festivalId} {
+        allow read: if isMember(projectId);
+        allow create, update, delete: if isDistributor(projectId);
+      }
+
+      // Planes de distribución y estrategias: Distribuidor y Owner
+      match /distribution_plans/{planId} {
+        allow read: if isMember(projectId);
+        allow create, update, delete: if isDistributor(projectId);
+      }
+
+      // Publicaciones de redes sociales vinculadas a la obra: Distribuidor y Owner
+      match /social_posts/{postId} {
+        allow read: if isMember(projectId);
+        allow create, update, delete: if isDistributor(projectId);
+      }
+
+      // Ficha técnica y datos maestros de la película: Exclusivo de Owner
+      match /film_data/{filmDocId} {
+        allow read: if isMember(projectId);
+        allow create, update, delete: if isOwner(projectId);
+      }
+
+      // Galería y material gráfico de la obra: Exclusivo de Owner
+      match /gallery/{galleryId} {
+        allow read: if isMember(projectId);
+        allow create, update, delete: if isOwner(projectId);
+      }
+
+      // Instituciones y contactos: Distribuidor y Owner
+      match /institutions/{instId} {
+        allow read: if isMember(projectId);
+        allow create, update, delete: if isDistributor(projectId);
+      }
+
+      // Roadmap, notas, recordatorios y reportes de errores: Colaborador, Distribuidor y Owner
+      match /roadmap/{itemId} {
+        allow read, write: if isCollaborator(projectId);
+      }
+      match /notes/{noteId} {
+        allow read, write: if isCollaborator(projectId);
+      }
+      match /reminders/{reminderId} {
+        allow read, write: if isCollaborator(projectId);
+      }
+      match /bugs/{bugId} {
+        allow read, write: if isCollaborator(projectId);
+      }
+
+      // Subcolecciones adicionales recursivas por defecto
       match /{document=**} {
-        allow read, write: if isProjectAuthorized(projectId);
+        allow read: if isMember(projectId);
+        allow write: if isOwner(projectId);
       }
     }
 
     // 3. Colecciones de catálogo o globales compartidas
-    // Plataformas de inscripción a festivales (FilmFreeway, Festhome, etc.)
     match /platforms/{platId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // Registro global de auditoría
     match /auditlogs/{logId} {
       allow read: if isSignedIn();
       allow create: if isSignedIn();
       allow update, delete: if isAdmin();
     }
 
-    // Miembros autorizados y roles globales de sistema
     match /authmembers/{memberId} {
       allow read: if isSignedIn();
       allow write: if isAdmin();
     }
 
-    // Tokens FCM para notificaciones push vinculados al email del usuario autenticado
     match /fcm_tokens/{email} {
       allow read, write: if isUserEmail(email) || isAdmin();
     }
 
-    // Desbloqueos de módulos o características por usuario
     match /user_easter_eggs/{email} {
       allow read, write: if isUserEmail(email) || isAdmin();
     }
 
-    // Preferencias y configuración de interfaz por usuario
     match /users/{userId} {
-      allow read, write: if isSignedIn() && (request.auth.uid == userId || request.auth.token.email == userId || isAdmin());
+      allow read, write: if isSignedIn() && (
+        request.auth.uid == userId ||
+        (request.auth.token.email != null && request.auth.token.email == userId) ||
+        isAdmin()
+      );
     }
 
-    // Por defecto, denegar cualquier acceso no especificado expresamente
+    match /config/{configId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /social_posts/{postId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /system_settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /user_notif_prefs/{userId} {
+      allow read, write: if isUserEmail(userId) || isAdmin();
+    }
+
+    // Colección de Invitaciones Mágicas para Obras
+    match /project_invitations/{inviteId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isAdmin();
+    }
+
+    // Cierre seguro
     match /{document=**} {
       allow read, write: if false;
     }

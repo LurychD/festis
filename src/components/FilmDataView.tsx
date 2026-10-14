@@ -1,10 +1,10 @@
 import React, { useState, useRef } from 'react';
-import { Film, User, Users, Phone, MapPin, Calendar, Clock, Disc, Activity, AlertCircle, FileText, Edit2, Check, X, Shield, Download, Globe, Languages, Upload, Camera, Trash2, Image as ImageIcon } from 'lucide-react';
+import { Film, User, Users, Phone, MapPin, Calendar, Clock, Disc, Activity, AlertCircle, FileText, Edit2, Check, X, Shield, Download, Globe, Upload, Camera, Trash2, Image as ImageIcon } from 'lucide-react';
 import { cn } from '../utils/helpers';
 import { uploadFileToStorage } from '../utils/storageHelpers';
 import { FilmData } from '../types';
 import { exportFilmDataPDF } from '../utils/filmDataPdfExport';
-import { GoogleGenAI } from "@google/genai";
+import { useProjectRole } from '../context/ProjectContext';
 
 interface Props {
   isAuthorized: boolean;
@@ -53,6 +53,9 @@ const DEFAULT_DATA: FilmData = {
 };
 
 export const FilmDataView: React.FC<Props> = ({ isAuthorized, filmData, setFilmData, showAlert, addAuditLog, userName }) => {
+  const { isOwner } = useProjectRole();
+  const canEditFilmData = isOwner;
+
   const [activeLang, setActiveLang] = useState<string>(filmData[0]?.lang || 'es');
   const availableLangs = Array.from(new Set([...filmData.map(d => d.lang || 'es'), 'es', 'en', 'fr']));
   
@@ -60,7 +63,6 @@ export const FilmDataView: React.FC<Props> = ({ isAuthorized, filmData, setFilmD
   
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<FilmData>(currentData);
-  const [isTranslating, setIsTranslating] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handleSave = () => {
@@ -92,79 +94,6 @@ export const FilmDataView: React.FC<Props> = ({ isAuthorized, filmData, setFilmD
       console.error(e);
       showAlert("Error generando PDF");
     }
-  };
-
-  // ==========================================
-  // FUNCIÓN: Traducir Datos del Film
-  // ==========================================
-  // Esta función se encarga de traducir la información actual del film a un idioma destino
-  // utilizando el SDK de Gemini de Google. Mantiene las claves JSON intactas y traduce
-  // únicamente los textos correspondientes.
-  const translateData = async (targetLanguage: string) => {
-      setIsTranslating(true);
-      try {
-          // Inicializamos el cliente de Google Gen AI con la clave API del entorno
-          const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-          
-          // Preparamos el prompt con las instrucciones de traducción y el JSON estructurado
-          const prompt = `Translate the following JSON object to ${targetLanguage}. Keep the keys exactly as they are. Translate ONLY the values. Ensure you return valid JSON, and nothing else.
-          
-          JSON to translate:
-          ${JSON.stringify({
-              history: draft.history,
-              techSpecs: draft.techSpecs,
-              biography: draft.biography,
-              credits: draft.credits.map(c => ({ role: c.role })),
-              contactInfo: draft.contactInfo.map(c => ({ title: c.title, subtitle: c.subtitle, lines: c.lines.map(l => ({ label: l.label })) }))
-          })}`;
-
-          // Solicitamos la generación de contenido estructurado a Gemini
-          const response = await ai.models.generateContent({
-              model: 'gemini-3-flash-preview',
-              contents: prompt,
-              config: {
-                responseMimeType: "application/json",
-              }
-          });
-          
-          const output = response.text || "";
-          if(output) {
-              const translated = JSON.parse(output);
-              const targetLangId = targetLanguage.toLowerCase().substring(0, 2);
-              const newDraft = { ...draft, id: `festis_${targetLangId}`, lang: targetLangId };
-              
-              newDraft.history = translated.history;
-              newDraft.techSpecs = translated.techSpecs;
-              newDraft.biography = translated.biography;
-              
-              if (translated.credits) {
-                 translated.credits.forEach((tc: any, i: number) => {
-                    if (newDraft.credits[i]) newDraft.credits[i].role = tc.role;
-                 });
-              }
-              
-              if (translated.contactInfo) {
-                 translated.contactInfo.forEach((tc: any, i: number) => {
-                    if (newDraft.contactInfo[i]) {
-                       newDraft.contactInfo[i].title = tc.title;
-                       newDraft.contactInfo[i].subtitle = tc.subtitle;
-                       tc.lines?.forEach((tl: any, j: number) => {
-                          if (newDraft.contactInfo[i].lines[j]) newDraft.contactInfo[i].lines[j].label = tl.label;
-                       });
-                    }
-                 });
-              }
-
-              setDraft(newDraft);
-              setActiveLang(targetLangId);
-              showAlert(`Traducido a ${targetLanguage} correctamente. Recuerda guardar.`);
-          }
-      } catch (error) {
-          console.error(error);
-          showAlert("Error al traducir.");
-      } finally {
-          setIsTranslating(false);
-      }
   };
 
   const currentDisplay = isEditing ? draft : currentData;
@@ -254,30 +183,21 @@ export const FilmDataView: React.FC<Props> = ({ isAuthorized, filmData, setFilmD
                   <Download className="h-4 w-4" /> Exportar PDF
                </button>
             )}
+
             
-            {isEditing && (
-               <div className="flex relative group shrink-0">
-                  <button disabled={isTranslating} className="flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-blue-600 transition shadow-lg disabled:opacity-50">
-                     <Languages className="h-4 w-4" /> {isTranslating ? 'Traduciendo...' : 'Traducir'}
-                  </button>
-                  <div className="absolute top-full left-0 mt-2 bg-white rounded-xl shadow-xl w-32 p-2 hidden group-hover:flex flex-col z-50">
-                     {['English', 'Spanish', 'French'].map((lang, idx) => (
-                        <button key={`${lang}-${idx}`} onClick={() => translateData(lang)} className="px-3 py-2 text-xs font-bold text-left hover:bg-slate-50 rounded-lg text-slate-700">
-                           {lang}
-                        </button>
-                     ))}
-                  </div>
-               </div>
-            )}
-            
-            {isAuthorized && !isEditing && (
+            {canEditFilmData && !isEditing ? (
               <button onClick={() => { setIsEditing(true); setDraft(currentData); }} className="shrink-0 flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-purple-600 transition shadow-lg relative group">
                 <Edit2 className="h-4 w-4" />
                 <span className="opacity-0 group-hover:opacity-100 absolute -bottom-8 inset-x-0 flex justify-center w-full">
                   <span className="whitespace-nowrap bg-slate-800 text-white text-[10px] px-2 py-1 rounded">Editar Datos</span>
                 </span>
               </button>
-            )}
+            ) : !canEditFilmData && !isEditing ? (
+              <div className="shrink-0 px-3 py-2 bg-slate-100 text-slate-500 border border-slate-200 rounded-xl text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5" title="Modificación reservada al Propietario">
+                <Shield className="h-3.5 w-3.5 text-slate-400" />
+                <span>Solo Lectura</span>
+              </div>
+            ) : null}
 
             {isEditing && (
               <>

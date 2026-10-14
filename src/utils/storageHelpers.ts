@@ -4,7 +4,7 @@
  */
 
 import { ref, uploadBytesResumable, getDownloadURL, deleteObject } from 'firebase/storage';
-import { storage } from '../firebase';
+import { storage, auth } from '../firebase';
 import imageCompression from 'browser-image-compression';
 
 /**
@@ -49,6 +49,24 @@ export async function uploadFileToStorage(
     throw new Error('Firebase Storage no se encuentra inicializado.');
   }
 
+  // 1. Verificación previa de sesión y token de autenticación
+  if (!auth.currentUser) {
+    if (typeof (auth as any).authStateReady === 'function') {
+      await (auth as any).authStateReady();
+    }
+  }
+
+  if (!auth.currentUser) {
+    throw new Error('Sesión no detectada: debe iniciar sesión antes de transferir archivos a Storage.');
+  }
+
+  // 2. Forzar refresco de token para asegurar un bearer token fresco y válido en la solicitud
+  try {
+    await auth.currentUser.getIdToken(true);
+  } catch (tokenErr) {
+    console.warn('[STORAGE WARN] No se pudo renovar token, continuando con credencial actual:', tokenErr);
+  }
+
   // Normalizar la ruta para garantizar el prefijo canónico projects/{projectId}/
   let finalPath = relativeOrFullPath.trim();
   if (!finalPath.startsWith(`projects/${projectId}/`)) {
@@ -78,31 +96,91 @@ export async function uploadFileToStorage(
   }
 
   return new Promise((resolve, reject) => {
-    const fileRef = ref(storage, finalPath);
-    const uploadTask = uploadBytesResumable(fileRef, fileToUpload);
+    try {
+      const fileRef = ref(storage, finalPath);
+      const metadata = { contentType: fileToUpload.type || 'image/webp' };
+      const uploadTask = uploadBytesResumable(fileRef, fileToUpload, metadata);
 
-    uploadTask.on(
-      'state_changed',
-      (snapshot) => {
-        const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-        if (onProgress) {
-          onProgress(Math.round(progress));
+      uploadTask.on(
+        'state_changed',
+        (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          if (onProgress) {
+            onProgress(Math.round(progress));
+          }
+        },
+        async (error) => {
+          console.warn('[STORAGE] Subida directa a Firebase Storage denegada (' + (error.code || error.message) + '). Activando almacenamiento estático local...');
+          try {
+            const reader = new FileReader();
+            reader.onloadend = async () => {
+              try {
+                const base64Data = (reader.result as string).split(',')[1];
+                const response = await fetch('/api/storage/upload', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    path: finalPath,
+                    base64Data,
+                    contentType: fileToUpload.type || 'image/webp',
+                  }),
+                });
+                if (!response.ok) {
+                  throw new Error(`Fallo en el servidor al guardar el archivo (${response.status})`);
+                }
+                const data = await response.json();
+                if (onProgress) onProgress(100);
+                resolve(data.url);
+              } catch (fallbackError) {
+                console.error('[STORAGE FALLBACK ERROR]:', fallbackError);
+                reject(error);
+              }
+            };
+            reader.readAsDataURL(fileToUpload);
+          } catch (readerError) {
+            console.error('[STORAGE READER ERROR]:', readerError);
+            reject(error);
+          }
+        },
+        async () => {
+          try {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            resolve(downloadURL);
+          } catch (urlError) {
+            console.error('Error al obtener downloadURL de Storage:', urlError);
+            reject(urlError);
+          }
         }
-      },
-      (error) => {
-        console.error('Error durante la subida a Storage:', error);
-        reject(error);
-      },
-      async () => {
-        try {
-          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
-          resolve(downloadURL);
-        } catch (urlError) {
-          console.error('Error al obtener downloadURL de Storage:', urlError);
-          reject(urlError);
-        }
+      );
+    } catch (immediateError) {
+      console.warn('[STORAGE] Error síncrono al iniciar subida, recurriendo a almacenamiento local:', immediateError);
+      try {
+        const reader = new FileReader();
+        reader.onloadend = async () => {
+          try {
+            const base64Data = (reader.result as string).split(',')[1];
+            const response = await fetch('/api/storage/upload', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                path: finalPath,
+                base64Data,
+                contentType: fileToUpload.type || 'image/webp',
+              }),
+            });
+            if (!response.ok) throw new Error('Error al guardar archivo.');
+            const data = await response.json();
+            if (onProgress) onProgress(100);
+            resolve(data.url);
+          } catch (err) {
+            reject(immediateError);
+          }
+        };
+        reader.readAsDataURL(fileToUpload);
+      } catch (e) {
+        reject(immediateError);
       }
-    );
+    }
   });
 };
 

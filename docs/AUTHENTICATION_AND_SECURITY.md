@@ -12,18 +12,17 @@ Contexto React: `AuthContext` (disponible globalmente a través del hook `useAut
 
 ### Ciclo de Vida del Estado de Autenticación
 
-1. **Inicialización, Caché Inmediato y Listener de Estado:**
-   Al montarse el `AuthProvider`, se verifica de inmediato si existe una sesión previa o usuario en caché (`cached_firebase_user`, `userEmail`) en `localStorage`. Si existe, la interfaz se inicializa sin demora (`loading = false`), evitando cualquier bloqueo de pantalla en blanco o spinner infinito. Simultáneamente, se registra el observador `onAuthStateChanged` para validar la sesión en segundo plano.
+1. **Inicialización y Listener de Estado:**
+   Al montarse el `AuthProvider`, el observador nativo `onAuthStateChanged` de Firebase Auth controla de forma estricta y transparente la existencia de un usuario real. No se admiten credenciales simuladas ni sesiones anónimas. Toda petición que llega a Firestore o Storage cuenta con un JWT oficial de Google o es bloqueada por la compuerta de login.
 
-2. **Timeout de Seguridad Ultrarrápido (2.5s):**
-   En entornos con restricciones de red o dentro de iFrames de vistas previas (donde las cookies de terceros o websockets de Firebase pueden bloquearse), el temporizador de seguridad se redujo a 2.5 segundos (en lugar de los 30s previos). Si Firebase Auth no responde en 2.5s, el proveedor libera automáticamente el estado de carga (`setLoading(false)`) permitiendo al usuario ingresar a la aplicación o usar el acceso directo.
+2. **Autenticación Exclusiva con Google (`loginWithGoogle`):**
+   El sistema opera exclusivamente mediante el proveedor oficial de Google (`GoogleAuthProvider`) con persistencia local permanente (`browserLocalPersistence`).
 
-3. **Acceso Directo y Modo Sin Conexión:**
-   Para prevenir bloqueos si los popups de Google están inhabilitados en dispositivos móviles, se habilitó el método `loginAsDirect` que permite autenticación directa como Director (`axeldibarra@gmail.com`) y botones de escape tanto en el Splash Screen como en la pantalla de inicio de sesión.
+3. **Manejo de Entorno iFrame y Apertura en Pestaña Independiente:**
+   En entornos de previsualización web donde la aplicación se encuentra embebida en un iFrame, las políticas de seguridad del navegador (partición de almacenamiento y bloqueo de ventanas emergentes entre orígenes) pueden impedir que el popup de OAuth complete el intercambio de credenciales. La aplicación detecta activamente el estado `isIframe` y provee una acción directa para abrir la app en una pestaña de primer nivel (`window.open(window.location.href, '_blank')`), asegurando un flujo de autenticación nativo y sin restricciones.
 
-3. **Autenticación con Google (`loginWithGoogle`):**
-   Utiliza la persistencia local explícita (`browserLocalPersistence`) y la autenticación emergente (`signInWithPopup`).
-   Al completar el flujo con éxito, extrae el `accessToken` de Google y lo almacena en `localStorage` bajo la clave `google_access_token`.
+4. **Administración Exclusiva de Axel Ibarra:**
+   En `firestore.rules`, la función `isAdmin()` está restringida de manera estricta y exclusiva a `axeldibarra@gmail.com` y su identificador único de cuenta (`IslcgZ6p0hRom8hSsZ9scw30tD12`). Los usuarios regulares solo acceden a proyectos donde su correo figure explícitamente en el arreglo `authorizedUsers` o en el campo `createdBy`.
 
 ```typescript
 // Fragmento simplificado del flujo de login en AuthProvider.tsx
@@ -156,25 +155,60 @@ service cloud.firestore {
     match /notifications/{notifId} {
       allow read, write: if isAuthenticated();
     }
+
+    match /config/{configId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /social_posts/{postId} {
+      allow read, write: if isSignedIn();
+    }
+
+    match /system_settings/{settingId} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    match /user_notif_prefs/{userId} {
+      allow read, write: if isUserEmail(userId) || isAdmin();
+    }
   }
 }
 ```
 
 ### Seguridad en Firebase Storage
-- Bucket oficial del proyecto: vinculado a `firebase-applet-config.json`.
-- Regla de tamaño: Límite estricto de 15MB por archivo para prevenir saturación de ancho de banda y cuotas de almacenamiento.
-- Solo usuarios autenticados pueden cargar archivos en las rutas autorizadas del bucket (`projects/{projectId}/*`).
+- Bucket oficial del proyecto: vinculado a `firebase-applet-config.json` y mapeado explícitamente en `firebase.json` (`festis-bucket-a`).
+- Verificación de sesión previa: el helper `uploadFileToStorage` ejecuta un pre-flight mediante `auth.authStateReady()` y renovación forzada de token (`getIdToken(true)`) garantizando que la petición viaje con un bearer token válido para evitar rechazos por `auth == null`.
+- Resiliencia y almacenamiento estático autónomo: si el bucket rechaza la subida por permisos IAM (`storage/unauthorized`), el binario comprimido en cliente se almacena de forma transparente en el endpoint local de assets `/api/storage/upload` bajo `/uploads/projects/{projectId}/...`, evitando cualquier caída visual y asegurando funcionamiento de punta a punta sin guardar base64 en Firestore.
+- Regla de tamaño: Límite estricto de 15MB por archivo (`request.resource.size <= 15 * 1024 * 1024`) para prevenir saturación de ancho de banda y cuotas de almacenamiento.
+- Usuarios autenticados: Solo usuarios autenticados (`request.auth != null`) pueden cargar y actualizar archivos en las rutas autorizadas del bucket (`/projects/{projectId}/{allPaths=**}`).
+- Bloqueo global: Cualquier ruta fuera del esquema canónico `/projects/` queda terminantemente denegada (`allow read, write: if false`).
 
 ---
 
-## 📋 5. Matriz de Permisos y Roles (RBAC)
+## 📋 5. Matriz de Permisos y Roles Multi-Tenant (RBAC de Proyecto)
 
-| Rol de Usuario | Lectura de Festivales | Edición / Creación | Exportación PDF/Excel | Consola de Depuración |
+La seguridad de cada obra audiovisual se valida mediante el UID del usuario (`request.auth.uid`) indexado en los arrays planos del documento del proyecto (`ownerUids`, `distributorUids`, `collaboratorUids`, `guestUids`). La interfaz gráfica emplea estrictamente la nomenclatura en español: **Propietario**, **Distribuidor**, **Colaborador** e **Invitado**.
+
+| Módulo / Operación | Propietario (Dueño / Productor) | Distribuidor | Colaborador | Invitado |
 | :--- | :---: | :---: | :---: | :---: |
-| **Invitado (No Autenticado)** | ✅ Solo Lectura | ❌ | ❌ | ❌ |
-| **Distribuidor / Miembro** | ✅ | ✅ | ✅ | ❌ |
-| **Administrador / Editor Head** | ✅ | ✅ | ✅ | ✅ |
-| **Modo Local (Dev Bypass)** | ✅ | ✅ (Local Storage) | ✅ | ✅ |
+| **Festivales: Lectura general** | Lectura completa | Lectura completa | Lectura completa | Solo lectura (pública) |
+| **Festivales: Creación, estados y fechas** | Permitido | Permitido | Bloqueado | Bloqueado |
+| **Festivales: Presupuestos, fees y gastos** | Visible y editable | Visible y editable | Oculto / Bloqueado | Oculto |
+| **Planes de Distribución: Alta y edición** | Permitido | Permitido | Solo lectura | Bloqueado |
+| **Planes de Distribución: Aprobación institucional** | Permitido | Permitido | Solo lectura | Bloqueado |
+| **Ficha Técnica (Film Data) y Galería/Assets** | Edición total | Solo lectura | Solo lectura | Solo lectura |
+| **Pizarra (Planning), Roadmap, Tareas y Notas** | Lectura y edición | Lectura y edición | Lectura y edición | Solo lectura |
+| **Configuración de la Obra (FPS, Resolución, Tema)** | Permitido | Bloqueado | Bloqueado | Bloqueado |
+| **Gestión de Miembros y Enlaces de Invitación** | Exclusivo | Bloqueado | Bloqueado | Bloqueado |
+| **Borrado o archivado de la obra** | Exclusivo | Bloqueado | Bloqueado | Bloqueado |
+| **Salvaguarda de Orfandad** | Último Propietario protegido | — | — | — |
+
+### Sistema de Enlaces Mágicos de Invitación (`/project_invitations`)
+- La incorporación de integrantes se realiza de forma autónoma sin intermediación de APIs de correo externas.
+- El Propietario genera un enlace con un rol preasignado (Distribuidor, Colaborador o Invitado) y validez temporal de 7 días.
+- Al abrir la URL `${window.location.origin}/?invite={token}`, el usuario autenticado se añade a la obra y se asocia su `request.auth.uid` al array correspondiente en Firestore.
 
 ---
 

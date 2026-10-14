@@ -6,19 +6,25 @@ Este documento detalla los procedimientos de verificación de calidad de código
 
 ## 🧪 1. Control de Calidad y Verificación de Código
 
-El proyecto utiliza TypeScript (`tsc`) y un linter riguroso para la detección temprana de errores de tipos, sintaxis e imports no resueltos.
+El proyecto integra un pipeline dual de aseguramiento de calidad: análisis estático de tipos con TypeScript y suite automatizada de pruebas unitarias y de integración con Vitest y React Testing Library.
 
 ### Comandos de Verificación:
 
 ```bash
-# Ejecutar verificación de tipos y linter
+# Ejecutar verificación estática de tipos (TypeScript)
 npm run lint
+
+# Ejecutar suite automatizada de pruebas (Vitest en modo headless)
+npm run test
 ```
 
-Este comando ejecuta `tsc --noEmit` validando:
-- Coherencia de tipos e interfaces en todo el repositorio.
-- Ausencia de imports rotos o dependencias no instaladas.
-- Coincidencia de esquemas de datos entre componentes y hooks.
+### Arquitectura de Pruebas Automatizadas (Vitest + Happy DOM):
+- **Motor de ejecución:** `vitest` configurado en `vitest.config.ts`.
+- **Entorno de simulación DOM:** `happy-dom`, emulador ultraliviano y de alto rendimiento que no requiere navegadores pesados ni instancias de Chromium.
+- **Librerías de interacción:** `@testing-library/react`, `@testing-library/jest-dom` y `@testing-library/user-event`.
+- **Setup y limpieza:** `src/test/setup.ts` ejecuta `cleanup()` de forma transparente tras cada caso de prueba (`afterEach`).
+- **Suites implementadas:**
+  - `src/test/ProjectMembersPanel.test.tsx`: Smoke test integral sobre la gestión de miembros, validando renderizado de integrantes, generador de invitaciones para rol Propietario, selector de roles (`distribuidor`, `colaborador`, `guest`) y modo solo lectura para usuarios con permisos restringidos.
 
 ---
 

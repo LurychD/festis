@@ -1,19 +1,6 @@
 /**
- * Vista Exclusiva de Selección y Gestión de Proyectos / Obras Audiovisuales (ProjectsHomeView).
- * Se despliega cuando no hay un proyecto activo en sesión.
- * 
- * Ergonomía táctil para mano derecha en celulares:
- * - Header flotante propio: Despegado de los bordes superiores y laterales (sticky top-3 left-0 right-0 mx-4 max-w-xl),
- *   con bordes redondeados (rounded-2xl), sombra sutil y desenfoque (backdrop-blur-xl).
- * - Buscador transversal integrado: Filtra en tiempo real por nombre de obra, resolución técnica y etiquetas/tags.
- * - Botón para desplegar la sidebar ubicado en el extremo DERECHO del header flotante para fácil alcance con el pulgar.
- * - Botón flotante FAB "+ Nuevo Proyecto" ubicado abajo a la derecha de la pantalla (fixed bottom-6 right-6 z-40).
- * - Panel lateral (drawer) de inicio abre y se anima desde el lateral DERECHO de la pantalla (slide-in-from-right).
- * - Limpieza total de acciones: Eliminada cualquier referencia o botón de creación de festivales en el inicio.
- * - Opciones de la sidebar de inicio: Exactamente 3 elementos:
- *   1. Configuración de la App (navega hacia AppSettingsView).
- *   2. Ayuda.
- *   3. Cerrar Sesión (ubicado abajo de todo, con modal de confirmación y temporizador de 5 segundos).
+ * Vista de Selección y Gestión de Proyectos / Obras Audiovisuales (ProjectsHomeView).
+ * Unificada estéticamente con el Sistema de Diseño del espacio de trabajo interno de Festis.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -25,7 +12,6 @@ import {
   LogOut,
   Search,
   Calendar,
-  Layers,
   ArrowRight,
   Loader2,
   Menu,
@@ -39,13 +25,18 @@ import { useAuth } from '../AuthProvider';
 import { Project } from '../types';
 import { ProjectModal } from './ProjectModal';
 import { LogoutConfirmModal } from './LogoutConfirmModal';
+import { motion, AnimatePresence } from 'motion/react';
+import { useDrawerSwipeGesture } from '../hooks/useDrawerSwipeGesture';
 
 interface ProjectsHomeViewProps {
   onOpenConfig: () => void;
   onOpenHelp: () => void;
 }
 
-// Subcomponente de tarjeta de proyecto con conteo reactivo de festivales en su subcolección
+/**
+ * Tarjeta de Obra Audiovisual con layout horizontal cinematográfico:
+ * 1/3 afiche a la izquierda y 2/3 de información estructurada a la derecha.
+ */
 const ProjectCard: React.FC<{
   project: Project;
   onSelect: () => void;
@@ -78,96 +69,106 @@ const ProjectCard: React.FC<{
       role="button"
       tabIndex={0}
       onKeyDown={(e) => e.key === 'Enter' && onSelect()}
-      className="group relative bg-white/80 hover:bg-white backdrop-blur-xl border border-slate-200/80 hover:border-pink-300 rounded-[2rem] p-6 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col justify-between cursor-pointer active:scale-[0.98] overflow-hidden"
+      className="group relative bg-white/75 hover:bg-white/95 backdrop-blur-xl border border-white/70 hover:border-pink-200 rounded-3xl p-4 sm:p-5 shadow-md hover:shadow-xl hover:shadow-pink-500/10 transition-all duration-300 flex flex-col xs:flex-row gap-4 sm:gap-5 cursor-pointer active:scale-[0.99] overflow-hidden"
     >
-      {/* Indicador de acento de la paleta de la obra */}
-      <div
-        className="absolute top-0 left-0 right-0 h-1.5 opacity-80 group-hover:opacity-100 transition-opacity"
-        style={{ backgroundColor: dominantColor }}
-      />
-
-      <div>
-        {/* Cabecera de la tarjeta: Ícono y badges técnicos */}
-        <div className="flex items-start justify-between gap-4 mb-5">
-          <div className="w-16 h-16 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200/80 flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-            {project.iconUrl ? (
-              <img
-                src={project.iconUrl}
-                alt={project.name}
-                className="w-full h-full object-cover"
-              />
-            ) : (
-              <div
-                className="w-full h-full flex items-center justify-center text-white font-black text-xl"
-                style={{ backgroundColor: dominantColor }}
-              >
-                {project.name.slice(0, 2).toUpperCase()}
-              </div>
-            )}
-          </div>
-
-          <div className="flex flex-col items-end gap-1.5">
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-200/60 font-mono">
-              {project.fps} FPS
+      {/* 1. Columna izquierda (1/3): Afiche vertical cinematográfico */}
+      <div className="w-full xs:w-32 sm:w-36 aspect-[2/3] rounded-2xl overflow-hidden bg-slate-900 border border-slate-200/80 shrink-0 relative shadow-sm group-hover:shadow-md transition-shadow">
+        {project.iconUrl ? (
+          <img
+            src={project.iconUrl}
+            alt={project.name}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+          />
+        ) : (
+          <div
+            className="w-full h-full flex flex-col items-center justify-center p-3 text-white text-center relative"
+            style={{
+              background: `linear-gradient(145deg, ${dominantColor}, #0f172a)`,
+            }}
+          >
+            <Film className="w-6 h-6 mb-2 opacity-80" />
+            <span className="font-black text-xl tracking-tight">
+              {project.name.slice(0, 2).toUpperCase()}
             </span>
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-50 text-slate-500 border border-slate-200/40">
-              {project.resolution || '1080p'}
+            <span className="text-[10px] font-semibold opacity-70 mt-1 uppercase tracking-wider">
+              Afiche
             </span>
-          </div>
-        </div>
-
-        {/* Nombre del proyecto */}
-        <h3 className="text-lg font-bold text-slate-900 group-hover:text-pink-600 transition-colors mb-2 line-clamp-1">
-          {project.name}
-        </h3>
-
-        {/* Creador */}
-        <p className="text-xs text-slate-500 mb-3 flex items-center gap-1.5">
-          <span>Creado por:</span>
-          <span className="font-semibold text-slate-700 truncate max-w-[180px]">
-            {project.createdBy || 'Equipo'}
-          </span>
-        </p>
-
-        {/* Etiquetas / Tags de la obra */}
-        {Array.isArray(project.tags) && project.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mb-5">
-            {project.tags.slice(0, 3).map((tag, idx) => (
-              <span
-                key={idx}
-                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10.5px] font-medium bg-slate-100 text-slate-600 border border-slate-200/50"
-              >
-                <Tag className="w-2.5 h-2.5 text-slate-400" />
-                <span>{tag}</span>
-              </span>
-            ))}
-            {project.tags.length > 3 && (
-              <span className="px-1.5 py-0.5 rounded-lg text-[10.5px] font-medium bg-slate-100 text-slate-500">
-                +{project.tags.length - 3}
-              </span>
-            )}
           </div>
         )}
       </div>
 
-      {/* Footer de la tarjeta: Contador de festivales y botón entrar */}
-      <div className="pt-4 border-t border-slate-100 flex items-center justify-between mt-auto">
-        <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-          <div className="w-6 h-6 rounded-lg bg-pink-50 text-pink-600 flex items-center justify-center">
-            <Calendar className="w-3.5 h-3.5" />
-          </div>
-          {isLoadingCount ? (
-            <span className="text-slate-400">Contando...</span>
-          ) : (
-            <span>
-              <strong className="text-slate-900 font-bold">{festivalsCount}</strong>{' '}
-              {festivalsCount === 1 ? 'festival' : 'festivales'}
+      {/* 2. Columna derecha (2/3): Información estructurada */}
+      <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
+        <div>
+          {/* Cabecera: Badges técnicos */}
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-pink-50 text-[#e91e63] border border-pink-100 uppercase tracking-wider">
+              Obra
             </span>
+
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="px-2 py-0.5 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200/80 font-mono">
+                {project.fps} FPS
+              </span>
+              <span className="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-slate-50 text-slate-500 border border-slate-200/60">
+                {project.resolution || '1080p'}
+              </span>
+            </div>
+          </div>
+
+          {/* Nombre de la obra */}
+          <h3 className="text-base sm:text-lg font-black text-slate-900 group-hover:text-[#e91e63] transition-colors line-clamp-1 mb-1">
+            {project.name}
+          </h3>
+
+          {/* Creador original */}
+          <p className="text-xs text-slate-500 mb-2 flex items-center gap-1.5 truncate">
+            <span>Creado por:</span>
+            <span className="font-semibold text-slate-700 truncate">
+              {project.createdBy || 'Equipo'}
+            </span>
+          </p>
+
+          {/* Etiquetas (Tags) */}
+          {Array.isArray(project.tags) && project.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {project.tags.slice(0, 2).map((tag, idx) => (
+                <span
+                  key={idx}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200/60"
+                >
+                  <Tag className="w-2.5 h-2.5 text-slate-400" />
+                  <span className="truncate max-w-[80px]">{tag}</span>
+                </span>
+              ))}
+              {project.tags.length > 2 && (
+                <span className="px-1.5 py-0.5 rounded-lg text-[10px] font-semibold bg-slate-100 text-slate-500">
+                  +{project.tags.length - 2}
+                </span>
+              )}
+            </div>
           )}
         </div>
 
-        <div className="w-8 h-8 rounded-full bg-slate-100 group-hover:bg-pink-600 text-slate-500 group-hover:text-white flex items-center justify-center transition-all shadow-xs">
-          <ArrowRight className="w-4 h-4" />
+        {/* Pie de la tarjeta */}
+        <div className="pt-3 border-t border-slate-100 flex items-center justify-between mt-2">
+          <div className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <div className="w-6 h-6 rounded-lg bg-pink-50 text-[#e91e63] flex items-center justify-center">
+              <Calendar className="w-3.5 h-3.5" />
+            </div>
+            {isLoadingCount ? (
+              <span className="text-slate-400 text-xs">Cargando...</span>
+            ) : (
+              <span>
+                <strong className="text-slate-900 font-bold">{festivalsCount}</strong>{' '}
+                {festivalsCount === 1 ? 'festival' : 'festivales'}
+              </span>
+            )}
+          </div>
+
+          <div className="w-8 h-8 rounded-xl bg-slate-100 group-hover:bg-[#e91e63] text-slate-600 group-hover:text-white flex items-center justify-center transition-all shadow-xs group-hover:shadow-md group-hover:shadow-[#e91e63]/25">
+            <ArrowRight className="w-4 h-4" />
+          </div>
         </div>
       </div>
     </div>
@@ -186,7 +187,14 @@ export const ProjectsHomeView: React.FC<ProjectsHomeViewProps> = ({
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState<boolean>(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState<boolean>(false);
 
-  // Filtrado transversal en tiempo real: nombre de la obra, resolución técnica y etiquetas/tags
+  // Gesto táctil móvil ergonómico para apertura y cierre por swipe
+  useDrawerSwipeGesture({
+    isOpen: isSidebarOpen,
+    onOpen: () => setIsSidebarOpen(true),
+    onClose: () => setIsSidebarOpen(false),
+  });
+
+  // Filtrado transversal por nombre, resolución y etiquetas
   const cleanTerm = searchTerm.toLowerCase().trim();
   const filteredProjects = projects.filter((p) => {
     if (!cleanTerm) return true;
@@ -208,29 +216,29 @@ export const ProjectsHomeView: React.FC<ProjectsHomeViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full flex flex-col bg-slate-50/60 relative">
-      {/* 1. APP HEADER FLOTANTE PROPIO (Despegado, rounded-2xl, sticky top-3 con desenfoque y ergonomía diestra) */}
-      <div className="sticky top-3 z-40 w-full px-4 flex justify-center pointer-events-none">
-        <header className="pointer-events-auto w-full max-w-xl bg-white/90 backdrop-blur-xl border border-slate-200/80 rounded-2xl px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3 shadow-md">
+    <div className="min-h-screen w-full flex flex-col relative">
+      {/* 1. Header flotante sólido despegado y estilizado */}
+      <div className="sticky top-4 z-40 w-full px-4 flex justify-center pointer-events-none">
+        <header className="pointer-events-auto w-full max-w-2xl bg-white border border-slate-200 rounded-3xl px-3 sm:px-4 py-2.5 flex items-center justify-between gap-3 shadow-md shadow-slate-900/5">
           {/* Logo / Identidad */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="w-8 h-8 rounded-xl bg-pink-600 text-white flex items-center justify-center shadow-xs">
+          <div className="flex items-center gap-2.5 shrink-0">
+            <div className="w-9 h-9 rounded-2xl bg-[#e91e63] text-white flex items-center justify-center shadow-md shadow-[#e91e63]/25">
               <Film className="w-4 h-4" />
             </div>
-            <span className="font-black text-slate-900 text-base tracking-tight hidden xs:inline">
+            <span className="font-black text-slate-900 text-sm tracking-tight hidden xs:inline">
               Festis
             </span>
           </div>
 
-          {/* Buscador transversal: Filtra en tiempo real por obra, resolución técnica y tags */}
+          {/* Buscador transversal */}
           <div className="relative flex-1">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Buscar obra, resolución o tags..."
+              placeholder="Buscar obra, formato o etiquetas..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-9 pr-8 py-1.5 rounded-xl bg-slate-100/90 hover:bg-white focus:bg-white border border-slate-200/80 text-xs sm:text-sm focus:outline-none focus:border-pink-500 focus:ring-1 focus:ring-pink-500 transition-all placeholder:text-slate-400 text-slate-800"
+              className="w-full pl-9 pr-8 py-2 rounded-2xl bg-slate-50 hover:bg-slate-100 focus:bg-white border border-slate-200 text-xs sm:text-sm focus:outline-none focus:border-[#e91e63] transition-all placeholder:text-slate-400 text-slate-800"
             />
             {searchTerm && (
               <button
@@ -244,159 +252,145 @@ export const ProjectsHomeView: React.FC<ProjectsHomeViewProps> = ({
             )}
           </div>
 
-          {/* Ergonomía para mano derecha: Botón para desplegar la sidebar en el extremo DERECHO */}
+          {/* Botón de apertura de drawer en extremo derecho */}
           <button
             type="button"
             onClick={() => setIsSidebarOpen(true)}
-            title="Abrir menú lateral"
-            className="p-2 rounded-xl border border-slate-200/80 bg-slate-50 hover:bg-slate-100 text-slate-700 active:scale-95 transition-all shadow-2xs shrink-0"
+            title="Abrir menú"
+            className="p-2.5 rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 active:scale-95 transition-all shadow-xs shrink-0"
           >
-            <Menu className="w-5 h-5 text-slate-700" />
+            <Menu className="w-4 h-4 text-slate-700" />
           </button>
         </header>
       </div>
 
-      {/* 2. SIDEBAR LATERAL (DRAWER) QUE ABRE Y SE ANIMA DESDE LA DERECHA */}
-      {/* Contiene ÚNICAMENTE: "Configuración de la App", "Ayuda" y abajo de todo "Cerrar Sesión" */}
-      {isSidebarOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          {/* Backdrop con desenfoque */}
-          <div
-            className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
-            onClick={() => setIsSidebarOpen(false)}
-          />
+      {/* 2. Drawer lateral reordenado con la estética institucional y Framer Motion */}
+      <AnimatePresence>
+        {isSidebarOpen && (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            {/* Backdrop con desenfoque suave */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm"
+              onClick={() => setIsSidebarOpen(false)}
+            />
 
-          {/* Panel Lateral Drawer desde el lateral DERECHO */}
-          <aside className="relative w-80 max-w-[85vw] bg-white h-full shadow-2xl flex flex-col justify-between p-6 z-10 border-l border-slate-100 animate-in slide-in-from-right duration-200">
-            {/* Cabecera de la Sidebar */}
-            <div>
-              <div className="flex items-center justify-between pb-6 mb-6 border-b border-slate-100">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-pink-600 text-white flex items-center justify-center shadow-md shadow-pink-600/30">
-                    <Film className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <h2 className="font-black text-slate-900 text-base">Festis</h2>
-                    <p className="text-xs text-slate-500 font-medium">Panel de Inicio</p>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setIsSidebarOpen(false)}
-                  className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
-                  title="Cerrar panel"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Elementos de Navegación Exclusivos: 1. Configuración de la App, 2. Ayuda */}
-              <nav className="flex flex-col gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    onOpenConfig();
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-slate-700 hover:text-pink-600 hover:bg-pink-50/60 active:scale-98 transition-all font-semibold text-sm border border-transparent hover:border-pink-100 text-left"
-                >
-                  <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-                    <Settings className="w-5 h-5" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span>Configuración de la App</span>
-                    <span className="text-[11px] text-slate-400 font-normal">
-                      Ajustes globales y respaldo
-                    </span>
-                  </div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsSidebarOpen(false);
-                    onOpenHelp();
-                  }}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-slate-700 hover:text-pink-600 hover:bg-pink-50/60 active:scale-98 transition-all font-semibold text-sm border border-transparent hover:border-pink-100 text-left"
-                >
-                  <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-                    <HelpCircle className="w-5 h-5" />
-                  </div>
-                  <div className="flex flex-col">
-                    <span>Ayuda</span>
-                    <span className="text-[11px] text-slate-400 font-normal">
-                      Documentación y soporte técnico
-                    </span>
-                  </div>
-                </button>
-              </nav>
-            </div>
-
-            {/* 3. Cerrar Sesión (Abajo de todo con confirmación y cuenta regresiva de 5s) */}
-            <div className="pt-4 border-t border-slate-100">
-              {user && (
-                <div className="mb-3 px-2">
-                  <p className="text-[11px] text-slate-400 font-medium">Sesión activa</p>
-                  <p className="text-xs font-semibold text-slate-700 truncate">{user.email}</p>
-                </div>
-              )}
+            {/* Panel lateral con bordes y tipografía unificados y repliegue por arrastre táctil */}
+            <motion.aside
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', stiffness: 360, damping: 32 }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 300 }}
+              dragElastic={{ left: 0, right: 0.2 }}
+              onDragEnd={(_e, info) => {
+                if (info.offset.x > 70 || info.velocity.x > 300) {
+                  setIsSidebarOpen(false);
+                }
+              }}
+              className="relative w-72 max-w-[80vw] bg-white h-full shadow-2xl flex flex-col justify-between pt-12 pb-6 px-6 z-10 border-l border-slate-200"
+            >
+              {/* Botón de cierre */}
               <button
                 type="button"
-                onClick={() => {
-                  setIsSidebarOpen(false);
-                  setIsLogoutModalOpen(true);
-                }}
-                className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl text-rose-600 hover:bg-rose-50 active:scale-98 transition-all font-semibold text-sm border border-rose-100 text-left"
+                onClick={() => setIsSidebarOpen(false)}
+                className="absolute top-4 right-4 h-10 w-10 flex items-center justify-center rounded-xl bg-slate-100/50 text-slate-500 hover:text-slate-800 hover:bg-slate-200/50 transition-colors"
+                title="Cerrar panel"
               >
-                <div className="w-9 h-9 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
-                  <LogOut className="w-5 h-5" />
-                </div>
-                <div className="flex flex-col">
-                  <span>Cerrar Sesión</span>
-                  <span className="text-[11px] text-rose-400 font-normal">
-                    Salir de forma segura
+                <X className="h-5 w-5" />
+              </button>
+
+              {/* Cabecera institucional idéntica al espacio interno */}
+              <div className="mb-8 text-center flex flex-col items-center">
+                <h2 className="text-xl font-bold text-slate-800 tracking-tight mb-1">
+                  Festis
+                  <span className="text-[#e91e63] text-xs font-semibold block mt-0.5">
+                    Inicio de Catálogo
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-600 font-medium truncate max-w-full">
+                  {user?.email || 'Sin sesión activa'}
+                </p>
+
+                <div className="flex flex-col items-center gap-2 mt-3">
+                  <span className="text-xs px-2.5 py-0.5 rounded-full inline-block font-semibold border bg-emerald-50 text-emerald-700 border-emerald-200">
+                    Acceso Autorizado
                   </span>
                 </div>
-              </button>
-            </div>
-          </aside>
-        </div>
-      )}
+              </div>
 
-      {/* 3. CONTENIDO PRINCIPAL: Catálogo de Obras */}
-      <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-8 pt-6 pb-28 flex flex-col">
-        {/* Cabecera del catálogo: Título y conteo de obras */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-8 border-b border-slate-200/80">
-          <div>
-            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-pink-600 mb-1">
-              <Layers className="w-4 h-4" />
-              <span>Obras Audiovisuales</span>
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
-              Catálogo de Proyectos
-            </h1>
-            <p className="text-xs sm:text-sm text-slate-500 mt-1">
-              Ingresa al entorno de una obra para gestionar sus festivales, presupuestos y materiales.
-            </p>
-          </div>
+              {/* Navegación central con botones en formato píldora rounded-2xl */}
+              <div className="flex flex-col justify-between flex-1 overflow-y-auto w-full">
+                <div className="flex flex-col gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSidebarOpen(false);
+                      onOpenConfig();
+                    }}
+                    className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm border-2 bg-white text-slate-600 border-slate-200 hover:border-[#e91e63] hover:bg-slate-50"
+                  >
+                    <Settings className="h-5 w-5 text-[#e91e63]" />
+                    <span>Configuración de la App</span>
+                  </button>
 
-          <div className="flex items-center gap-2">
-            <span className="px-3 py-1 rounded-full text-xs font-semibold bg-white border border-slate-200 text-slate-600 shadow-2xs font-mono">
-              {projects.length} {projects.length === 1 ? 'obra activa' : 'obras activas'}
-            </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSidebarOpen(false);
+                      onOpenHelp();
+                    }}
+                    className="flex items-center gap-3 px-4 py-3 rounded-2xl transition-all font-bold text-sm border-2 bg-white text-slate-600 border-slate-200 hover:border-blue-500 hover:bg-slate-50"
+                  >
+                    <HelpCircle className="h-5 w-5 text-blue-600" />
+                    <span>Ayuda y Documentación</span>
+                  </button>
+                </div>
+
+                {/* Pie de panel con botón de Cerrar Sesión */}
+                <div className="pt-4 border-t border-slate-200 mt-auto">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsSidebarOpen(false);
+                      setIsLogoutModalOpen(true);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl transition-all font-bold text-sm bg-slate-900 text-white hover:bg-rose-700 shadow-md active:scale-95"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>Cerrar Sesión</span>
+                  </button>
+                </div>
+              </div>
+            </motion.aside>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* 3. Contenido principal */}
+      <main className="flex-1 w-full max-w-6xl mx-auto px-4 sm:px-6 pt-6 pb-28">
+        <div className="flex items-center justify-between mb-6">
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            Obras Audiovisuales
+          </h1>
+
+          <span className="px-3.5 py-1 rounded-2xl text-xs font-bold bg-white/80 backdrop-blur-md border border-slate-200 text-slate-700 shadow-xs font-mono">
+            {projects.length} {projects.length === 1 ? 'obra' : 'obras'}
+          </span>
         </div>
 
         {/* Estado de Carga */}
         {isLoadingProjects ? (
           <div className="flex-1 flex flex-col items-center justify-center py-24 text-slate-400">
-            <Loader2 className="w-8 h-8 animate-spin text-pink-600 mb-3" />
-            <span className="text-sm font-medium">Cargando catálogo de obras...</span>
+            <Loader2 className="w-8 h-8 animate-spin text-[#e91e63] mb-3" />
+            <span className="text-xs font-semibold">Cargando catálogo...</span>
           </div>
         ) : filteredProjects.length > 0 ? (
-          /* Grilla de Tarjetas de Proyectos */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 sm:gap-6">
             {filteredProjects.map((project) => (
               <ProjectCard
                 key={project.id}
@@ -407,23 +401,18 @@ export const ProjectsHomeView: React.FC<ProjectsHomeViewProps> = ({
           </div>
         ) : (
           /* Estado Vacío */
-          <div className="flex-1 flex flex-col items-center justify-center py-20 px-4 text-center bg-white/60 backdrop-blur-xl border border-slate-200/80 rounded-[2.5rem] shadow-xs">
-            <div className="w-20 h-20 rounded-3xl bg-pink-50 text-pink-600 flex items-center justify-center mb-4 border border-pink-100">
-              <Film className="w-10 h-10 stroke-[1.5]" />
+          <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-white/70 backdrop-blur-xl border border-white/60 rounded-3xl shadow-sm">
+            <div className="w-16 h-16 rounded-2xl bg-pink-50 text-[#e91e63] flex items-center justify-center mb-3 border border-pink-100">
+              <Film className="w-8 h-8 stroke-[1.5]" />
             </div>
-            <h3 className="text-xl font-bold text-slate-900 mb-2">
-              {searchTerm ? 'No se encontraron obras coincidentes' : 'No hay obras creadas aún'}
+            <h3 className="text-base font-bold text-slate-900 mb-1">
+              {searchTerm ? 'Sin coincidencias' : 'No hay obras registradas'}
             </h3>
-            <p className="text-sm text-slate-500 max-w-md mb-6 leading-relaxed">
-              {searchTerm
-                ? 'No encontramos coincidencias para esa búsqueda por nombre, resolución o etiqueta. Prueba con otro término.'
-                : 'Registra tu primera obra audiovisual para comenzar a organizar sus postulaciones, inscripciones y calendarios.'}
-            </p>
             {searchTerm ? (
               <button
                 type="button"
                 onClick={() => setSearchTerm('')}
-                className="py-2.5 px-6 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm transition-all"
+                className="mt-3 py-2 px-5 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs transition-all shadow-xs"
               >
                 Limpiar búsqueda
               </button>
@@ -431,25 +420,25 @@ export const ProjectsHomeView: React.FC<ProjectsHomeViewProps> = ({
               <button
                 type="button"
                 onClick={() => setIsNewProjectModalOpen(true)}
-                className="py-3 px-8 rounded-full bg-pink-600 hover:bg-pink-700 text-white font-bold text-sm shadow-lg shadow-pink-600/25 active:scale-95 transition-all"
+                className="mt-3 py-2.5 px-6 rounded-2xl bg-[#e91e63] hover:bg-[#d81b60] text-white font-bold text-xs shadow-md shadow-[#e91e63]/25 active:scale-95 transition-all"
               >
-                Registrar Nueva Obra
+                Crear Obra
               </button>
             )}
           </div>
         )}
       </main>
 
-      {/* 4. BOTÓN FLOTANTE FAB "+ NUEVO PROYECTO" FIJO ABAJO A LA DERECHA (Ergonomía pulgar mano derecha) */}
+      {/* 4. Botón flotante FAB "+ Nueva Obra" */}
       <div className="fixed bottom-6 right-6 z-40">
         <button
           type="button"
           onClick={() => setIsNewProjectModalOpen(true)}
-          className="flex items-center gap-2.5 py-3.5 px-5 rounded-full bg-pink-600 hover:bg-pink-700 text-white font-black text-sm shadow-xl shadow-pink-600/35 active:scale-95 transition-all border border-pink-400/30"
+          className="flex items-center gap-2 py-3.5 px-5 rounded-2xl bg-[#e91e63] hover:bg-[#d81b60] text-white font-bold text-xs shadow-lg shadow-[#e91e63]/30 active:scale-95 transition-all border border-pink-400/20"
           title="Crear un nuevo proyecto"
         >
-          <Plus className="w-5 h-5 stroke-[3]" />
-          <span>Nuevo Proyecto</span>
+          <Plus className="w-4 h-4 stroke-[3]" />
+          <span>Nueva Obra</span>
         </button>
       </div>
 

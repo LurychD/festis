@@ -4,6 +4,7 @@
  */
 
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { X, Upload, Film, Palette, Users, Sparkles, Check, Loader2 } from 'lucide-react';
 import { Project, ProjectThemeConfig } from '../types';
 import { uploadProjectIcon } from '../utils/storageHelpers';
@@ -145,31 +146,47 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md overflow-y-auto">
-      <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl border border-slate-100 my-8">
-        {/* Cabecera del modal */}
-        <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-pink-50 text-pink-600 flex items-center justify-center border border-pink-100">
-              <Film className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900">
-                {projectToEdit ? 'Editar Obra Audiovisual' : 'Nueva Obra Audiovisual'}
-              </h2>
-              <p className="text-xs text-slate-500">
-                Configura los parámetros técnicos, cromáticos y de equipo
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[9990] flex items-center justify-center p-4 overflow-y-auto">
+          {/* Backdrop animado con desenfoque suave */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-md"
             onClick={onClose}
-            className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+          />
+
+          {/* Tarjeta modal con transición suave de escala y opacidad */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.94, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 10 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full shadow-2xl border border-slate-100 my-8 z-10"
           >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+            {/* Cabecera del modal */}
+            <div className="flex items-center justify-between pb-4 mb-6 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-pink-50 text-[#e91e63] flex items-center justify-center border border-pink-100">
+                  <Film className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-slate-900">
+                    {projectToEdit ? 'Editar Obra Audiovisual' : 'Nueva Obra Audiovisual'}
+                  </h2>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
 
         {errorMsg && (
           <div className="mb-5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
@@ -372,7 +389,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
+      </motion.div>
     </div>
-  );
+  )}
+</AnimatePresence>
+);
 };

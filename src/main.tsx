@@ -23,11 +23,14 @@ class ErrorBoundary extends React.Component<any, any> {
   }
 }
 
-if ('serviceWorker' in navigator) {
+if (
+  'serviceWorker' in navigator &&
+  process.env.NODE_ENV === 'production' &&
+  !window.location.hostname.includes('run.app')
+) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/firebase-messaging-sw.js').catch((err) => {
-      console.warn('SW registration failed on load:', err);
-    });
+    navigator.serviceWorker.register('/firebase-messaging-sw.js').catch(() => {});
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
 

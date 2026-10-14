@@ -26,10 +26,40 @@ export interface ProjectThemeConfig {
   valorFondo: string;     // Color HEX, URL en Firebase Storage o sintaxis de gradiente
 }
 
+// Jerarquía estricta de roles multi-tenant por obra audiovisual
+export type ProjectRole = 'owner' | 'distribuidor' | 'colaborador' | 'guest';
+
+// Localización canónica de roles obligatoria en español para la interfaz gráfica
+export const PROJECT_ROLE_LABELS: Record<ProjectRole, string> = {
+  owner: 'Propietario',
+  distribuidor: 'Distribuidor',
+  colaborador: 'Colaborador',
+  guest: 'Invitado',
+};
+
+// Invitación mediante enlace mágico para incorporación autónoma a una obra
+export interface ProjectInvitation {
+  id: string;              // Token del enlace (ej: inv_1727750400_abc123)
+  projectId: string;       // ID de la obra audiovisual destino
+  projectName: string;     // Nombre de la obra para previsualización al aceptar
+  role: ProjectRole;       // Rol preasignado por el Propietario
+  targetEmail?: string;    // Email opcional si la invitación fue acotada a una casilla puntual
+  createdBy: string;       // Email o UID del Propietario que generó el enlace
+  createdAt: string;       // Timestamp ISO de creación
+  expiresAt: string;       // Timestamp ISO de expiración
+  used: boolean;           // Indica si el enlace ya fue canjeado
+  usedBy?: string;         // UID del usuario que redimió la invitación
+  usedByEmail?: string;    // Email del usuario que redimió la invitación
+  usedAt?: string;         // Timestamp ISO del canje
+}
+
 // Miembro con rol asignado dentro de un proyecto específico
 export interface ProjectMember {
   email: string;
-  role: 'admin' | 'dev' | 'visitante' | 'externo';
+  uid?: string; // UID nativo de Firebase Auth para comprobación de seguridad por reglas
+  role: ProjectRole;
+  displayName?: string;
+  addedAt?: string;
 }
 
 // Entidad raíz de Proyecto / Obra Audiovisual (Colección /projects/{projectId})
@@ -41,10 +71,14 @@ export interface Project {
   resolution: string; // Ej: "1920x1080", "4K UHD"
   createdBy: string;
   members: ProjectMember[];
-  authorizedUsers: string[]; // Correos electrónicos planos en minúsculas para reglas de seguridad de Firestore
+  ownerUids?: string[];        // UIDs con rol Owner (control total y borrado)
+  distributorUids?: string[];  // UIDs con rol Distribuidor (festivales y planes)
+  collaboratorUids?: string[]; // UIDs con rol Colaborador (roadmap, notas, reminders)
+  guestUids?: string[];       // UIDs con rol Guest (solo lectura)
+  authorizedUsers: string[];   // Correos electrónicos planos en minúsculas para compatibilidad
   theme: ProjectThemeConfig;
-  tags?: string[];           // Etiquetas y palabras clave del proyecto
-  description?: string;      // Sinopsis o descripción breve
+  tags?: string[];             // Etiquetas y palabras clave del proyecto
+  description?: string;        // Sinopsis o descripción breve
   createdAt: string;
   updatedAt: string;
 }

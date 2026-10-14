@@ -78,6 +78,8 @@ import { OceanShader } from "./OceanShader";
 import { ShaderConfigGroup } from "./ShaderConfigGroup";
 import { PlatformIcon } from "./PlatformIcon";
 import { ProjectConfigPanel } from "./ProjectConfigPanel";
+import { ProjectMembersPanel } from "./ProjectMembersPanel";
+import { useProject } from "../context/ProjectContext";
 
 interface ConfigViewProps {
   configTab: "general" | "services" | "members" | "database" | "visuals" | "info" | "desarrollo" | "proyecto";
@@ -273,6 +275,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
   setView,
 }) => {
   const { activeSkin, setActiveSkin, skins } = useSkin();
+  const { currentProject } = useProject();
   const [reads, setReads] = useState(getFirestoreReads());
   const [writes, setWrites] = useState(getFirestoreWrites());
   const [migrationStatus, setMigrationStatus] = useState<{
@@ -388,16 +391,6 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
   const [isSavingNotifPrefs, setIsSavingNotifPrefs] = useState(false);
   const [hasSavedNotifPrefs, setHasSavedNotifPrefs] = useState(false);
 
-  const [isGeminiSparkEnabled, setIsGeminiSparkEnabled] = useState<boolean>(() => {
-    const saved = localStorage.getItem("gemini_spark_enabled");
-    return saved !== null ? saved === "true" : true;
-  });
-
-  const [sparkSecretKey, setSparkSecretKey] = useState<string>(() => {
-    return localStorage.getItem("gemini_spark_secret_key") || "";
-  });
-  const [showSparkKey, setShowSparkKey] = useState<boolean>(false);
-  const [isSavingSparkKey, setIsSavingSparkKey] = useState<boolean>(false);
 
   // Phone & 2FA Security Verification State
   const [userPhone, setUserPhone] = useState<string>(() => {
@@ -539,90 +532,6 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
     }
   };
 
-  const handleToggleShowSparkKey = () => {
-    if (showSparkKey) {
-      setShowSparkKey(false);
-    } else if (isExperimental2FAEnabled && twoFactorSecret) {
-      request2FA("Revelar Clave Secreta API Key", () => setShowSparkKey(true));
-    } else {
-      setShowSparkKey(true);
-    }
-  };
-
-  const handleGenerateRandomSparkKeyWith2FA = () => {
-    if (isExperimental2FAEnabled && twoFactorSecret) {
-      request2FA("Generar Nueva Clave Secreta", () => handleGenerateRandomSparkKey());
-    } else {
-      handleGenerateRandomSparkKey();
-    }
-  };
-
-  const handleSaveSparkSecretKeyWith2FA = () => {
-    if (isExperimental2FAEnabled && twoFactorSecret) {
-      request2FA("Guardar Clave Secreta API Key", () => handleSaveSparkSecretKey(sparkSecretKey));
-    } else {
-      handleSaveSparkSecretKey(sparkSecretKey);
-    }
-  };
-
-  const handleSaveSparkSecretKey = async (newKey: string) => {
-    setSparkSecretKey(newKey);
-    localStorage.setItem("gemini_spark_secret_key", newKey);
-    setIsSavingSparkKey(true);
-    try {
-      const { doc, setDoc } = await import("firebase/firestore");
-      const sparkRef = doc(db, "system_settings", "gemini_spark");
-      await setDoc(
-        sparkRef,
-        {
-          apiKey: newKey,
-          updatedAt: new Date().toISOString(),
-          updatedBy: userEmail || "system",
-        },
-        { merge: true }
-      );
-      addAuditLog(
-        "system_settings",
-        `${userName || userEmail} ha actualizado la API Key secreta de Gemini Spark.`
-      );
-      showAlert("Clave Secreta Guardada", "La API Key de autenticación para Gemini Spark se guardó correctamente.");
-    } catch (err) {
-      console.warn("Error guardando clave secreta en Firestore:", err);
-    } finally {
-      setIsSavingSparkKey(false);
-    }
-  };
-
-  const handleGenerateRandomSparkKey = () => {
-    const generated = "spark_" + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
-    handleSaveSparkSecretKey(generated);
-  };
-
-  const handleToggleGeminiSpark = async (val: boolean) => {
-    setIsGeminiSparkEnabled(val);
-    localStorage.setItem("gemini_spark_enabled", val ? "true" : "false");
-    try {
-      const { doc, setDoc } = await import("firebase/firestore");
-      const sparkRef = doc(db, "system_settings", "gemini_spark");
-      await setDoc(
-        sparkRef,
-        {
-          enabled: val,
-          mode: "read-only",
-          updatedAt: new Date().toISOString(),
-          updatedBy: userEmail || "system",
-        },
-        { merge: true }
-      );
-      addAuditLog(
-        "system_settings",
-        `${userName || userEmail} ha ${val ? "activado" : "desactivado"} la integración backend Gemini Spark (Modo Lectura).`
-      );
-      showAlert("Gemini Spark", `Integración backend en modo lectura ${val ? "habilitada" : "deshabilitada"}.`);
-    } catch (err) {
-      console.warn("Error sincronizando Gemini Spark setting en Firestore:", err);
-    }
-  };
 
   const renderSwitch = (
     checked: boolean,
@@ -1980,6 +1889,9 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
       )}
 
       {configTab === "members" && (
+        currentProject ? (
+          <ProjectMembersPanel />
+        ) : (
         <div className="space-y-6">
           {members.map((member: AppMember, idx: number) => {
             const bgColors = [
@@ -2289,6 +2201,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
             </button>
           )}
         </div>
+        )
       )}
 
       {configTab === "database" && (

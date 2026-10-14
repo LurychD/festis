@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Plus, Building, FileText, Calendar, DollarSign, CheckCircle2, Trash2, Clock, X } from "lucide-react";
 import { DistributionPlan, DistributionInstitution, DistributionPlanStatus, Festival, DistributionPlanStatusHistory } from "../types";
 import { cn } from "../utils/helpers";
+import { useProjectRole } from "../context/ProjectContext";
 
 interface DistributionPlansViewProps {
   distributionPlans: DistributionPlan[];
@@ -30,6 +31,9 @@ export const DistributionPlansView: React.FC<DistributionPlansViewProps> = ({
   setView,
   onSelectPlan,
 }) => {
+  const { isOwner, isDistributor, isGuest } = useProjectRole();
+  const canManagePlans = isOwner || isDistributor;
+
   // Estado para modal de creación
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [name, setName] = useState("");
@@ -37,6 +41,24 @@ export const DistributionPlansView: React.FC<DistributionPlansViewProps> = ({
   const [budget, setBudget] = useState("");
   const [resolutionDate, setResolutionDate] = useState("");
   const [notes, setNotes] = useState("");
+
+  // Si el usuario es invitado, mostrar pantalla de acceso restringido
+  if (isGuest) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-xl font-black text-slate-800 tracking-tight">
+          Planes de Distribución
+        </h1>
+        <div className="p-12 text-center bg-white/80 backdrop-blur-xl border border-slate-200 rounded-3xl shadow-sm max-w-lg mx-auto">
+          <Building className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+          <h3 className="text-sm font-bold text-slate-800">Acceso Restringido</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            Los planes de distribución están disponibles para miembros con rol Colaborador, Distribuidor o Propietario.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Estadísticas del Plan de Distribución (Aisladas)
   const activePlansCount = distributionPlans.filter(p => p.estado !== "archivado").length;
@@ -144,7 +166,7 @@ export const DistributionPlansView: React.FC<DistributionPlansViewProps> = ({
           Planes de Distribución
         </h1>
 
-        {isAuthorized && (
+        {canManagePlans && (
           <button
             onClick={() => {
               if (institutions.length === 0) {
@@ -206,7 +228,7 @@ export const DistributionPlansView: React.FC<DistributionPlansViewProps> = ({
               Los planes de distribución vinculan festivales con instituciones y organismos reguladores (como ENERC o INCAA) para llevar el control del estado y su respectivo presupuesto.
             </p>
           </div>
-          {isAuthorized && (
+          {canManagePlans && (
             <button
               onClick={() => {
                 if (institutions.length === 0) {

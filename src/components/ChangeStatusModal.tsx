@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Festival, FestivalStatus } from "../types";
 import { RefreshCw, MessageSquare, Check, X, Calendar } from "lucide-react";
 import { getStatusColorStyles, formatDateTimeForInput, cn } from "../utils/helpers";
+import { motion, AnimatePresence } from "motion/react";
 
 interface ChangeStatusModalProps {
   isOpen: boolean;
@@ -30,45 +31,59 @@ export const ChangeStatusModal: React.FC<ChangeStatusModalProps> = ({
     }
   }, [festival]);
 
-  if (!isOpen || !festival) return null;
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdateStatus(festival.id, selectedStatus, note.trim() || undefined, customDate || undefined);
+    if (festival) {
+      onUpdateStatus(festival.id, selectedStatus, note.trim() || undefined, customDate || undefined);
+    }
     onClose();
   };
 
-  const currentStyles = getStatusColorStyles(festival.status);
+  const currentStyles = festival ? getStatusColorStyles(festival.status) : "";
   const newStyles = getStatusColorStyles(selectedStatus);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div 
-        className="glass-card bg-white w-full max-w-md rounded-[2.5rem] p-6 shadow-2xl border border-slate-100 space-y-5 relative overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600">
-              <RefreshCw className="h-5 w-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-black text-slate-800 tracking-tight">
-                Cambiar Estado
-              </h3>
-              <p className="text-[11px] font-bold text-slate-400 line-clamp-1">
-                {festival.name}
-              </p>
-            </div>
-          </div>
-          <button
+    <AnimatePresence>
+      {isOpen && festival && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18 }}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm"
             onClick={onClose}
-            className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+          />
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.94, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.94, y: 10 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="glass-card bg-white w-full max-w-md rounded-[2.5rem] p-6 shadow-2xl border border-slate-100 space-y-5 relative overflow-hidden z-10"
+            onClick={(e) => e.stopPropagation()}
           >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2.5 rounded-2xl bg-indigo-50 text-indigo-600">
+                  <RefreshCw className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-800 tracking-tight">
+                    Cambiar Estado
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-400 line-clamp-1">
+                    {festival.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Transition Visualizer */}
@@ -162,7 +177,9 @@ export const ChangeStatusModal: React.FC<ChangeStatusModalProps> = ({
             </button>
           </div>
         </form>
-      </div>
-    </div>
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>
   );
 };

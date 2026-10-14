@@ -3,8 +3,10 @@
     "database": "festis-db-a",
     "rules": "firestore.rules"
   },
-  "storage": {
-    "bucket": "festis-bucket-a",
-    "rules": "storage.rules"
-  }
+  "storage": [
+    {
+      "bucket": "festis-bucket-a",
+      "rules": "storage.rules"
+    }
+  ]
 }

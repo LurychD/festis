@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { motion } from "motion/react";
-import { X, Sparkles, AlertTriangle, FlaskConical, Clock } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { X, Sparkles, AlertTriangle, FlaskConical, Clock, Clipboard, ClipboardPaste } from "lucide-react";
 import { Festival, FestivalStatus, Platform, StatusHistoryEntry, DistributionPlan } from "../types";
 import { PlaceAutocomplete } from "./PlaceAutocomplete";
 import { uploadFileToStorage } from "../utils/storageHelpers";
 import { PlatformIcon } from "./PlatformIcon";
+import { useProjectRole } from "../context/ProjectContext";
+import { detectFestivalFromText } from "../utils/clipboardFestivalParser";
 import {
   cn,
   formatDateForInput,
@@ -44,6 +46,10 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
   platforms = [],
   distributionPlans = [],
 }) => {
+  const { isOwner, isDistributor } = useProjectRole();
+  const canManageFestivals = isOwner || isDistributor;
+  const canViewFinancials = isOwner || isDistributor;
+
   // --- ESTADOS LOCALES DEL FORMULARIO Y SUBIDA ---
   const [projectionCoords, setProjectionCoords] = useState<{
     lat: number;
@@ -69,6 +75,9 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
   const [linkVal, setLinkVal] = useState("");
   const [isPreliminaryVal, setIsPreliminaryVal] = useState(false);
   const [distributionPlanIdVal, setDistributionPlanIdVal] = useState("");
+  const [isPastingClipboard, setIsPastingClipboard] = useState(false);
+  const [showManualPasteModal, setShowManualPasteModal] = useState(false);
+  const [manualPasteText, setManualPasteText] = useState("");
 
   // Modal de confirmación para festival de prueba (Detector "test" en rol dev)
   const [showTestConfirmModal, setShowTestConfirmModal] = useState(false);
@@ -261,6 +270,132 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
     }
   }, [isOpen, modalType, selectedFestival, platforms]);
 
+  const applyDetectedFestival = (detected: ReturnType<typeof detectFestivalFromText>): boolean => {
+    if (!detected || !detected.name || detected.name === "Festival sin título") {
+      showAlert("No se reconoció información válida de festival.");
+      return false;
+    }
+
+    if (detected.name) {
+      setNameVal(detected.name);
+      const nameEl = document.getElementById("m-name") as HTMLInputElement | null;
+      if (nameEl) nameEl.value = detected.name;
+    }
+
+    if (detected.country && detected.country !== "A confirmar") {
+      setCountryVal(detected.country);
+      const countryEl = document.getElementById("m-country") as HTMLInputElement | null;
+      if (countryEl) countryEl.value = detected.country;
+    }
+
+    if (detected.deadline) {
+      setDeadlineVal(detected.deadline);
+      const deadlineEl = document.getElementById("m-deadline") as HTMLInputElement | null;
+      if (deadlineEl) deadlineEl.value = detected.deadline;
+    }
+
+    if (detected.newsDate) {
+      setNewsVal(detected.newsDate);
+      const newsEl = document.getElementById("m-news") as HTMLInputElement | null;
+      if (newsEl) newsEl.value = detected.newsDate;
+    }
+
+    if (detected.link) {
+      setLinkVal(detected.link);
+      const linkEl = document.getElementById("m-link") as HTMLInputElement | null;
+      if (linkEl) linkEl.value = detected.link;
+    }
+
+    const finalPrice = detected.price || (detected.fee !== undefined ? `${detected.fee}` : "");
+    if (finalPrice) {
+      setPriceVal(finalPrice);
+      const priceEl = document.getElementById("m-price") as HTMLInputElement | null;
+      if (priceEl) priceEl.value = finalPrice;
+    }
+
+    if (detected.platform) {
+      setSelectedPlat(detected.platform);
+      const platEl = document.getElementById("m-plat") as HTMLSelectElement | null;
+      if (platEl) platEl.value = detected.platform;
+    }
+
+    const catEl = document.getElementById("m-cat") as HTMLInputElement | null;
+    if (catEl && detected.category) catEl.value = detected.category;
+
+    const obsEl = document.getElementById("m-obs") as HTMLTextAreaElement | null;
+    if (obsEl) {
+      const notes: string[] = [];
+      if (detected.detectedAccreditations && detected.detectedAccreditations.length > 0) {
+        notes.push(`Sellos: ${detected.detectedAccreditations.join(", ")}`);
+      }
+      if (detected.rawNotes) {
+        notes.push(detected.rawNotes);
+      }
+      if (notes.length > 0) {
+        obsEl.value = notes.join(" | ");
+      }
+    }
+
+    const plocEl = document.getElementById("m-ploc") as HTMLInputElement | null;
+    if (plocEl && (detected.projectionLocation || detected.city)) {
+      plocEl.value = detected.projectionLocation || detected.city || "";
+    }
+
+    showAlert(`Festival '${detected.name}' autocompletado.`);
+    return true;
+  };
+
+  const handleAutofillFromClipboard = async () => {
+    if (isPastingClipboard) return;
+
+    // Si el entorno o navegador no dispone de API de lectura directa, abrir fallback manual sin error
+    if (
+      typeof navigator === "undefined" ||
+      !navigator.clipboard ||
+      typeof navigator.clipboard.readText !== "function"
+    ) {
+      setManualPasteText("");
+      setShowManualPasteModal(true);
+      return;
+    }
+
+    try {
+      setIsPastingClipboard(true);
+      const text = await navigator.clipboard.readText();
+      if (!text || text.trim().length < 5) {
+        // Portapapeles vacío o insuficiente: derivar limpiamente al diálogo manual
+        setManualPasteText("");
+        setShowManualPasteModal(true);
+        return;
+      }
+
+      const detected = detectFestivalFromText(text);
+      applyDetectedFestival(detected);
+    } catch (_err) {
+      // Degradación elegante: Permissions-Policy bloqueada (NotAllowedError, SecurityError)
+      // CERO console.error ruidoso en consola; abrir el sub-modal de pegado manual
+      setManualPasteText("");
+      setShowManualPasteModal(true);
+    } finally {
+      setIsPastingClipboard(false);
+    }
+  };
+
+  const handleProcessManualPaste = () => {
+    if (!manualPasteText || manualPasteText.trim().length < 5) {
+      showAlert("El texto pegado es demasiado corto.");
+      return;
+    }
+    const detected = detectFestivalFromText(manualPasteText);
+    const success = applyDetectedFestival(detected);
+    if (success) {
+      setShowManualPasteModal(false);
+      setManualPasteText("");
+    }
+  };
+
+  const handleClipboardAutocomplete = handleAutofillFromClipboard;
+
   // Validaciones en tiempo real
   const todayStr = new Date().toISOString().split("T")[0];
   const isDeadlineInPast = Boolean(deadlineVal.trim() && deadlineVal < todayStr);
@@ -290,10 +425,10 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
     ? `*Falta ${missingFields.join(missingFields.length === 2 ? " y " : ", ")}`
     : "";
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       {/* Fondo difuminado interactivo */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -375,67 +510,22 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
                   className="flex-1 border-2 border-indigo-100 focus:border-indigo-400 bg-white px-3 py-2 text-sm rounded-xl outline-none"
                 />
 
-                <label className="cursor-pointer px-4 py-2 bg-white text-indigo-600 border-2 border-indigo-100 rounded-xl font-bold text-sm hover:bg-indigo-50 transition-colors flex items-center justify-center gap-2 whitespace-nowrap">
-                  <input
-                    type="file"
-                    id="m-file-upload"
-                    className="hidden"
-                    accept="*/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) {
-                        const input = document.getElementById(
-                          "m-auto-parse"
-                        ) as HTMLInputElement;
-                        if (input)
-                          input.value = `Archivo seleccionado: ${file.name}`;
-                      }
-                    }}
-                  />
-                  📁 Subir Archivo
-                </label>
-
                 <button
                   onClick={async (e) => {
                     const btn = e.currentTarget;
                     const input = document.getElementById(
                       "m-auto-parse"
                     ) as HTMLInputElement;
-                    const fileInput = document.getElementById(
-                      "m-file-upload"
-                    ) as HTMLInputElement;
-                    const file = fileInput?.files?.[0];
 
-                    if (!input.value.trim() && !file) return;
-
-                    let textOrUrl = input.value.trim();
-                    if (file) textOrUrl = ""; // Priorizar archivo si existe
+                    if (!input.value.trim()) return;
+                    const textOrUrl = input.value.trim();
 
                     const originalHtml = btn.innerHTML;
-                    btn.innerHTML = "✨ Procesando...";
+                    btn.innerHTML = "Procesando...";
                     btn.disabled = true;
 
                     try {
-                      let payload: any = { textOrUrl };
-
-                      if (file) {
-                        // Conversión del archivo a base64
-                        const reader = new FileReader();
-                        const base64Promise = new Promise((resolve, reject) => {
-                          reader.onload = () =>
-                            resolve((reader.result as string).split(",")[1]);
-                          reader.onerror = (error) => reject(error);
-                          reader.readAsDataURL(file);
-                        });
-                        const base64Data = await base64Promise;
-                        payload = {
-                          textOrUrl: "",
-                          fileName: file.name,
-                          mimeType: file.type,
-                          fileBase64: base64Data,
-                        };
-                      }
-
+                      const payload = { textOrUrl };
                       const res = await fetch("/api/parse-festival", {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
@@ -505,7 +595,7 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
                     title="Haz clic para crear un Festival de Prueba interactivo"
                   >
                     <FlaskConical className="w-3.5 h-3.5 text-indigo-200 animate-bounce" />
-                    <span>🧪 Test Badge (Crear Festi)</span>
+                    <span>Test Badge (Crear Festi)</span>
                   </button>
                 )}
               </div>
@@ -746,27 +836,29 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
                 </select>
               </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-700 ml-1 block mb-1">
-                Precio / Fee
-              </label>
-              <input
-                type="text"
-                id="m-price"
-                value={priceVal}
-                onChange={(e) => setPriceVal(e.target.value)}
-                placeholder="Ej: $25 USD o Gratis"
-                className={cn(
-                  "glass-input w-full border-2 focus:border-[#e91e63] bg-white/50",
-                  isPriceNegative ? "border-red-400 bg-red-50/40" : "border-slate-200"
+            {canViewFinancials && (
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-slate-700 ml-1 block mb-1">
+                  Precio / Fee
+                </label>
+                <input
+                  type="text"
+                  id="m-price"
+                  value={priceVal}
+                  onChange={(e) => setPriceVal(e.target.value)}
+                  placeholder="Ej: $25 USD o Gratis"
+                  className={cn(
+                    "glass-input w-full border-2 focus:border-[#e91e63] bg-white/50",
+                    isPriceNegative ? "border-red-400 bg-red-50/40" : "border-slate-200"
+                  )}
+                />
+                {isPriceNegative && (
+                  <span className="text-[10px] text-red-600 font-bold block mt-0.5 ml-1">
+                    El precio no puede ser un valor negativo.
+                  </span>
                 )}
-              />
-              {isPriceNegative && (
-                <span className="text-[10px] text-red-600 font-bold block mt-0.5 ml-1">
-                  El precio no puede ser un valor negativo.
-                </span>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           {/* Link Oficial */}
@@ -980,10 +1072,11 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
         </div>
 
         {/* Botón de guardar/actualizar */}
-        <div className="p-8 bg-slate-50 border-t border-slate-100 shrink-0">
-          <button
-            id="btn-save-festival-modal"
-            onClick={() => {
+        <div className="p-4 sm:p-6 bg-slate-50 border-t border-slate-100 shrink-0">
+          <div className="flex flex-row items-center gap-2 sm:gap-3 w-full">
+            <button
+              id="btn-save-festival-modal"
+              onClick={() => {
               if (!isAuthorized) {
                 showAlert("No tienes permisos para realizar esta acción.");
                 return;
@@ -1179,27 +1272,114 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
               }
               onClose();
             }}
-            disabled={isFormInvalid}
+            disabled={isFormInvalid || !canManageFestivals}
             className={cn(
-              "w-full btn-primary py-5 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2",
-              isFormInvalid
+              "flex-1 w-full btn-primary py-5 rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2",
+              isFormInvalid || !canManageFestivals
                 ? "opacity-50 cursor-not-allowed bg-slate-300 text-slate-500 shadow-none border-0 hover:bg-slate-300"
                 : "shadow-[#e91e63]/20 hover:scale-[1.01]"
             )}
           >
             {modalType === "create"
-              ? "Guardar Festival 💾"
+              ? "Guardar Festival"
               : modalType === "new_edition"
-              ? "Abrir Nueva Edición 🚀"
-              : "Actualizar Festival ✅"}
+              ? "Abrir Nueva Edición"
+              : "Actualizar Festival"}
           </button>
-          {isFormInvalid && (
-            <p className="text-[11px] text-amber-700 text-center font-semibold mt-2.5 bg-amber-50/80 py-1.5 px-3 rounded-lg border border-amber-200">
-              ⚠️ {missingMsg}
-            </p>
+
+          {/* Botón de autocompletado icon-only a la derecha (exclusivo modo creación) */}
+          {modalType === "create" && (
+            <button
+              type="button"
+              onClick={handleAutofillFromClipboard}
+              disabled={isPastingClipboard}
+              className={cn(
+                "w-11 h-11 min-w-[44px] min-h-[44px] rounded-2xl border-2 border-pink-200 bg-pink-50 hover:bg-pink-100 text-[#e91e63] flex items-center justify-center transition-all active:scale-95 shadow-sm cursor-pointer shrink-0",
+                isPastingClipboard && "opacity-50 cursor-not-allowed"
+              )}
+              title="Autocompletar desde portapapeles"
+              aria-label="Autocompletar desde portapapeles"
+            >
+              <ClipboardPaste className={cn("w-5 h-5", isPastingClipboard && "animate-spin")} />
+            </button>
           )}
         </div>
+          {!canManageFestivals ? (
+            <p className="text-[11px] text-slate-600 text-center font-semibold mt-2.5 bg-slate-100 py-1.5 px-3 rounded-lg border border-slate-200">
+              Modo solo lectura: la gestión de postulaciones requiere rol Propietario o Distribuidor.
+            </p>
+          ) : isFormInvalid ? (
+            <p className="text-[11px] text-amber-700 text-center font-semibold mt-2.5 bg-amber-50/80 py-1.5 px-3 rounded-lg border border-amber-200">
+              {missingMsg}
+            </p>
+          ) : null}
+        </div>
       </motion.div>
+
+      {/* Submodal / Dialog de pegado manual por bloqueo de Permissions-Policy o portapapeles */}
+      {showManualPasteModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-md animate-fade-in">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            className="bg-white rounded-3xl p-6 max-w-lg w-full shadow-2xl border-2 border-pink-200 space-y-4 relative"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-pink-50 border border-pink-200 flex items-center justify-center text-[#e91e63]">
+                  <ClipboardPaste className="w-5 h-5" />
+                </div>
+                <h3 className="font-black text-slate-800 text-base">
+                  Pegar texto del festival
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowManualPasteModal(false);
+                  setManualPasteText("");
+                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                aria-label="Cerrar modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <textarea
+              autoFocus
+              value={manualPasteText}
+              onChange={(e) => setManualPasteText(e.target.value)}
+              rows={5}
+              placeholder="Pegá acá la convocatoria, bases o texto del festival (Ctrl+V)..."
+              className="w-full p-3.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-2xl focus:bg-white focus:border-[#e91e63] focus:ring-2 focus:ring-pink-100 outline-none transition-all resize-none"
+            />
+
+            <div className="flex flex-col sm:flex-row gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={handleProcessManualPaste}
+                disabled={!manualPasteText.trim()}
+                className="flex-1 min-h-[44px] py-3 px-5 rounded-2xl btn-primary font-bold text-xs shadow-md shadow-[#e91e63]/20 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <ClipboardPaste className="w-4 h-4" />
+                <span>Procesar y Autocompletar</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowManualPasteModal(false);
+                  setManualPasteText("");
+                }}
+                className="min-h-[44px] py-3 px-5 rounded-2xl font-bold text-xs text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
 
       {/* Modal de confirmación de Festival de Prueba (detector "test" en rol dev) */}
       {showTestConfirmModal && (
@@ -1233,7 +1413,7 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
                     Espere {testCountdown}s para habilitar...
                   </>
                 ) : (
-                  "Sí, crear festival de prueba 🧪"
+                  "Sí, crear festival de prueba"
                 )}
               </button>
               <button
@@ -1247,5 +1427,7 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
         </div>
       )}
     </div>
-  );
+  )}
+</AnimatePresence>
+);
 };

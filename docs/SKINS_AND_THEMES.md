@@ -11,7 +11,7 @@ El sistema de Temas permite personalizar la apariencia visual de **Festis Cardig
   - Sincroniza la skin activa con los atributos globales `data-skin` en `document.documentElement` y `document.body`.
   - Persiste cambios en Firestore (`users/{userId}`) si hay un usuario autenticado.
 - **Temas Disponibles**:
-  - `cardigan` (Cardigan): Tema oficial con degradado pastel y fucsia emblemático `#e91e63`. Marcado con badge `Oficial`.
+  - `cardigan` (Cardigan): Tema oficial con degradado pastel purgado armónico (rosa pastel `#fce7f3`, celeste `#bae6fd` y lavanda `#ddd6fe`, sin tonos amarillos en el fondo base) y fucsia emblemático `#e91e63`. Marcado con badge `Oficial`.
   - `cardigan-noche` (Cardigan Noche): Modo noche en tonos azul pizarra oscuro (`#0f172a`, `#1e293b`), fucsia y acentos celestes para alta legibilidad en ambientes de baja luz. Marcado con badge `WiP`.
   - `cardigan-boceto` (Cardigan Ilustración): Estética inspirada en acuarela/boceto con lienzo azul hielo (`#eaf2f8`) y trazos azul cobalto/índigo (`#2d3e50`). Marcado con badge `WiP`.
 - **Selector de Temas & Laboratorio UI Standalone**:

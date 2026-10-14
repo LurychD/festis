@@ -101,6 +101,7 @@ import { GlobalModals } from "./components/GlobalModals";
 import { OmniboxModal } from "./components/OmniboxModal";
 import { validateBackupJSON } from "./utils/backupValidator";
 import { useNotificationEngine } from "./hooks/useNotificationEngine";
+import { useDrawerSwipeGesture } from "./hooks/useDrawerSwipeGesture";
 import { AppSettingsView } from "./components/AppSettingsView";
 import { ConfigView } from "./components/ConfigView";
 import { AppSplashScreen } from "./components/AppSplashScreen";
@@ -115,6 +116,10 @@ import { ThemeDesignSystemShowcaseView } from "./components/ThemeDesignSystemSho
 import { DistributionPlansView } from "./components/DistributionPlansView";
 import { DistributionPlanDetailView } from "./components/DistributionPlanDetailView";
 import { ErrorBoundary } from "./components/ErrorBoundary";
+import { parseClipboardContent } from "./utils/clipboardFestivalParser";
+import { deduplicateBatch } from "./utils/clipboardDeduplicator";
+import { ProcessingExtractionModal } from "./components/modals/ProcessingExtractionModal";
+import { BatchClipboardDetectionModal, BatchItemCandidate } from "./components/modals/BatchClipboardDetectionModal";
 
 // Lazy Loaded Heavy Views
 import { lazy, Suspense } from "react";
@@ -166,6 +171,7 @@ import {
   DistributionInstitution,
   DistributionPlan,
   DistributionPlanStatus,
+  PROJECT_ROLE_LABELS,
 } from "./types";
 import { INITIAL_FESTIVALS, INITIAL_PLATFORMS } from "./utils/seedData";
 import { clsx, type ClassValue } from "clsx";
@@ -347,7 +353,7 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const { user, loading, authError, debugLogs, loginWithGoogle, loginAsDirect, logout } = useAuth();
+  const { user, loading, authError, debugLogs, loginWithGoogle, openInNewTab, isIframe, logout } = useAuth();
   const userEmail =
     user?.email || localStorage.getItem("userEmail") || "axeldibarra@gmail.com";
   const userName =
@@ -428,22 +434,43 @@ export default function App() {
     userEmail === "luciazruocco@gmail.com" ||
     userEmail === "tiziana@example.com";
 
-  const realIsDev = currentUser?.role === "dev" || explicitDev;
-  const realIsAdmin =
-    currentUser?.role === "admin" || realIsDev || explicitAdmin;
+  const { currentProject, setCurrentProject, userProjectRole, acceptInvite } = useProject();
 
-  const effectiveRole: any =
-    testRole ||
-    (realIsDev
-      ? "dev"
-      : realIsAdmin
-        ? "admin"
-        : currentUser?.role || "externo");
+  // Gesto táctil móvil ergonómico para apertura y repliegue de menú lateral interno
+  useDrawerSwipeGesture({
+    isOpen: isSidebarOpen,
+    onOpen: () => {
+      if (Boolean(currentProject)) setIsSidebarOpen(true);
+    },
+    onClose: () => setIsSidebarOpen(false),
+    enabled: Boolean(currentProject),
+  });
+
+  const isGlobalDev = explicitDev;
+  const isGlobalAdmin = explicitAdmin || isGlobalDev;
+  const realIsDev = isGlobalDev;
+
+  const resolvedRole = useMemo(() => {
+    if (testRole) return testRole;
+    if (isGlobalDev) return "dev";
+    if (isGlobalAdmin) return "admin";
+    if (currentProject) {
+      if (userProjectRole.isOwner) return "admin";
+      if (userProjectRole.isDistributor) return "dev";
+      if (userProjectRole.isCollaborator) return "visitante";
+      return "externo";
+    }
+    return currentUser?.role || "externo";
+  }, [testRole, isGlobalDev, isGlobalAdmin, currentProject, userProjectRole, currentUser?.role]);
+
+  const effectiveRole: any = resolvedRole;
 
   const isDev = effectiveRole === "dev";
   const isAdmin = effectiveRole === "admin" || isDev;
   const isAuthorized =
     effectiveRole !== "visitante" && effectiveRole !== "externo";
+
+  const canManageFestivals = userProjectRole.isOwner || userProjectRole.isDistributor || isGlobalAdmin;
 
   const planningRef = useRef<PlanningViewRef>(null);
 
@@ -470,7 +497,6 @@ export default function App() {
   const [selectedCountries, setSelectedCountries] = useState<string[]>([]);
   const [taskSearch, setTaskSearch] = useState("");
 
-  const { currentProject, setCurrentProject } = useProject();
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   // Generador dinámico de rutas de subcolección según el proyecto activo
@@ -513,6 +539,101 @@ export default function App() {
     window.addEventListener('keydown', handleGlobalKeyDown);
     return () => window.removeEventListener('keydown', handleGlobalKeyDown);
   }, []);
+
+  // Estados y pipeline del motor de captura heurística del portapapeles
+  const [isExtractingModalOpen, setIsExtractingModalOpen] = useState(false);
+  const [extractionStep, setExtractionStep] = useState(1);
+  const [extractionStatus, setExtractionStatus] = useState('');
+  const [isBatchDetectionModalOpen, setIsBatchDetectionModalOpen] = useState(false);
+  const [batchCandidates, setBatchCandidates] = useState<BatchItemCandidate[]>([]);
+
+  const processClipboardText = async (rawText: string) => {
+    if (!rawText || !rawText.trim() || !currentProject) return;
+
+    try {
+      setIsExtractingModalOpen(true);
+      setExtractionStep(1);
+      setExtractionStatus('Saneando y normalizando texto del portapapeles...');
+      await new Promise((r) => setTimeout(r, 120));
+
+      setExtractionStep(2);
+      setExtractionStatus('Extrayendo fechas, plataformas y tasas...');
+      const parsed = await parseClipboardContent(rawText);
+
+      setExtractionStep(3);
+      setExtractionStatus('Cotejando contra el catálogo canónico de festivales...');
+      await new Promise((r) => setTimeout(r, 100));
+
+      setExtractionStep(4);
+      setExtractionStatus('Ejecutando deduplicación de 5 capas contra la obra...');
+      const deduplicated = deduplicateBatch(parsed.items, festivals);
+
+      setExtractionStep(5);
+      setExtractionStatus('Estructurando lote para revisión...');
+      await new Promise((r) => setTimeout(r, 150));
+
+      setIsExtractingModalOpen(false);
+
+      if (deduplicated.length > 0) {
+        setBatchCandidates(deduplicated);
+        setIsBatchDetectionModalOpen(true);
+      } else {
+        showToast('No se identificaron convocatorias válidas en el texto.');
+      }
+    } catch (err) {
+      console.error('Error al procesar portapapeles:', err);
+      setIsExtractingModalOpen(false);
+      showToast('Ocurrió un error al analizar el portapapeles.');
+    }
+  };
+
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!currentProject) return;
+
+      const target = e.target as HTMLElement | null;
+      if (target && typeof target.tagName === 'string') {
+        const tag = target.tagName.toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || tag === 'select' || target.isContentEditable) {
+          return;
+        }
+      }
+
+      const text = e.clipboardData?.getData('text');
+      if (text && text.trim().length > 10) {
+        processClipboardText(text);
+      }
+    };
+
+    const handleCustomTrigger = async () => {
+      if (!currentProject) {
+        showToast('Debes seleccionar o crear una obra audiovisual primero.');
+        return;
+      }
+      try {
+        if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
+          const text = await navigator.clipboard.readText();
+          if (text && text.trim().length > 5) {
+            processClipboardText(text);
+          } else {
+            showToast('El portapapeles está vacío o no contiene texto legible.');
+          }
+        } else {
+          showToast('Usa Ctrl+V o Cmd+V para pegar directamente sobre la pantalla.');
+        }
+      } catch {
+        showToast('Usa Ctrl+V o Cmd+V para pegar directamente sobre la pantalla.');
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    window.addEventListener('festis:trigger-clipboard-capture', handleCustomTrigger);
+
+    return () => {
+      window.removeEventListener('paste', handlePaste);
+      window.removeEventListener('festis:trigger-clipboard-capture', handleCustomTrigger);
+    };
+  }, [currentProject, festivals]);
   const [notifications, setNotifications] = useLocalSyncArray<Notification>(
     "notifications",
     [],
@@ -2003,6 +2124,30 @@ export default function App() {
     }, 5000);
   };
 
+  // Procesamiento y redención de Enlaces Mágicos de Invitación (?invite={token})
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const inviteToken = params.get('invite');
+    if (!inviteToken || !user) return;
+
+    acceptInvite(inviteToken)
+      .then((res) => {
+        showAlert(
+          `Te has unido exitosamente a la obra "${res.projectName}" con el rol de ${PROJECT_ROLE_LABELS[res.role]}.`
+        );
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      })
+      .catch((err) => {
+        showAlert(
+          err.message || 'No fue posible validar el enlace de invitación.',
+          'INVITE_ERROR'
+        );
+        const cleanUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+      });
+  }, [user, acceptInvite]);
+
   const removeAlert = (id: string) => {
     setAlerts((prev) => prev.filter((a) => a.id !== id));
   };
@@ -2137,13 +2282,16 @@ export default function App() {
             Iniciar Sesión con Google
           </button>
           
-          <button
-            type="button"
-            onClick={() => loginAsDirect("axeldibarra@gmail.com", "Axel Ibarra")}
-            className="mt-3 w-full py-3 bg-white/90 hover:bg-white text-slate-700 text-sm font-semibold rounded-xl transition border border-slate-200/90 shadow-sm flex items-center justify-center gap-2"
-          >
-            Acceder como Axel Ibarra
-          </button>
+          {isIframe && (
+            <button
+              type="button"
+              onClick={openInNewTab}
+              className="mt-3 w-full py-3 bg-white hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-xl transition border border-slate-200 shadow-sm flex items-center justify-center gap-2"
+            >
+              <ExternalLink className="h-4 w-4 text-slate-500" />
+              Abrir en nueva pestaña para iniciar sesión
+            </button>
+          )}
           
           {authError && (
             <div className="mt-6 p-4 bg-red-50 text-red-600 rounded-xl w-full text-sm font-medium border border-red-100 flex flex-col items-start gap-3">
@@ -2248,6 +2396,14 @@ export default function App() {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", stiffness: 350, damping: 30 }}
+              drag="x"
+              dragConstraints={{ left: 0, right: 300 }}
+              dragElastic={{ left: 0, right: 0.2 }}
+              onDragEnd={(_e, info) => {
+                if (info.offset.x > 70 || info.velocity.x > 300) {
+                  setIsSidebarOpen(false);
+                }
+              }}
               className="fixed top-0 right-0 h-full w-72 max-w-[80vw] bg-white shadow-2xl z-[101] flex flex-col pt-12 pb-6 px-6 border-l border-slate-200 no-print"
             >
               <button
@@ -2630,8 +2786,10 @@ export default function App() {
               : view === "play_zone" || view === "docs"
               ? "max-w-none pt-0 pb-0 px-0"
               : view === "planning"
-              ? "max-w-7xl pt-20 pb-2 px-2 sm:px-4 p-4"
-              : "max-w-2xl pt-44 pb-32 p-4",
+              ? "max-w-7xl pt-52 sm:pt-56 pb-12 px-2 sm:px-4"
+              : view === "festivals"
+              ? "max-w-3xl pt-52 sm:pt-56 pb-32 px-4"
+              : "max-w-6xl pt-52 sm:pt-56 pb-32 px-4 sm:px-6",
           )}
         >
           <AnimatePresence mode="wait">
@@ -3392,13 +3550,14 @@ export default function App() {
         )}
 
       {/* Botón flotante unificado para añadir festival (con glow sutil y animación reactiva) */}
-      {Boolean(currentProject) && (view === "dashboard" || view === "festivals") && isAuthorized && (
+      {Boolean(currentProject) && (view === "dashboard" || view === "festivals") && canManageFestivals && (
         <div className="fixed bottom-36 left-0 right-0 pointer-events-none z-[60] px-4">
           <div className="max-w-2xl mx-auto w-full flex flex-col items-end gap-4">
             {renderDebugFAB()}
             <button
               id="btn-auto-global-add-festival"
               onClick={() => {
+                setSelectedFestival(null);
                 setModalType('create');
                 setIsModalOpen(true);
               }}
@@ -3562,6 +3721,24 @@ export default function App() {
         platforms={platforms}
         distributionPlans={distributionPlans}
       />
+
+      {/* Modales del Motor de Extracción y Deduplicación por Lotes */}
+      <ProcessingExtractionModal
+        isOpen={isExtractingModalOpen}
+        currentStep={extractionStep}
+        statusMessage={extractionStatus}
+      />
+
+      <BatchClipboardDetectionModal
+        isOpen={isBatchDetectionModalOpen}
+        onClose={() => setIsBatchDetectionModalOpen(false)}
+        candidates={batchCandidates}
+        onConfirm={async (approvedFestivals) => {
+          await setFestivals((prev) => [...approvedFestivals, ...prev]);
+          showToast(`${approvedFestivals.length} festival(es) importado(s) exitosamente.`);
+        }}
+      />
+
       <AnimatePresence>
         {toastMessage && (
           <motion.div

@@ -241,12 +241,16 @@ ThemeDesignSystemShowcaseView es un entorno de trabajo a pantalla completa dise�
 
 Ficha Técnica del Componente:
 Ubicación: `src/components/ProjectsHomeView.tsx`  
-Categoría: Selector de Obras, Hub Multi-Tenant Central y Vestíbulo Móvil  
+Categoría: Selector de Obras, Hub Multi-Tenant Central y Vestíbulo Cinematográfico  
 
 Descripción y Arquitectura Explayada:
 ProjectsHomeView es el vestíbulo y puerta de entrada multi-obra de Festis. Al ingresar el usuario a la plataforma o deseleccionar la obra activa, ProjectsHomeView presenta un entorno optimizado ergonómicamente para dispositivos móviles y escritorio sin mostrar la barra de navegación inferior ni cabeceras internas de trabajo.
 
-Incorpora un header flotante propio despegado de los bordes superiores y laterales (sticky top-3 mx-4 max-w-xl rounded-2xl) con desenfoque de fondo (backdrop-blur-xl), buscador transversal integrado que filtra proyectos en tiempo real por nombre de obra, resolución técnica (1080p, 4K) y etiquetas o tags, y el botón de apertura del menú lateral situado en el extremo derecho para facilitar el alcance táctil con el pulgar de la mano derecha. El menú lateral (drawer) se despliega y anima desde el lateral derecho (slide-in-from-right) y contiene estrictamente 3 opciones: Configuración de la App (navega hacia AppSettingsView), Ayuda y Cerrar Sesión (con temporizador de seguridad de 5 segundos). En la esquina inferior derecha se sitúa un botón flotante FAB "+ Nuevo Proyecto" de alta accesibilidad táctil para el alta ágil de nuevas producciones audiovisuales. Al seleccionar una obra, se actualiza el `currentProject` en el `ProjectContext`, habilitando el acceso a sus subcolecciones de festivales, planes y materiales.
+Incorpora un header flotante propio despegado de los bordes superiores (sticky top-4 w-full max-w-2xl rounded-3xl) con acabado blanco sólido al 100% (bg-white border border-slate-200 shadow-md shadow-slate-900/5, sin transparencias ni glassmorphism que trasluzca el fondo), isotipo de claqueta con acento magenta (#e91e63), buscador transversal integrado con fondo slate-50 que filtra proyectos en tiempo real por nombre de obra, resolución técnica (1080p, 4K) y etiquetas o tags, y el botón de apertura del menú lateral situado en el extremo derecho en formato rounded-2xl.
+
+El menú lateral (drawer) replica exactamente la arquitectura estética del panel interno de Festis: panel flotante con backdrop difuminado (bg-slate-900/20 backdrop-blur-sm), cabecera institucional con marca y versión de inicio, correo del usuario activo y badge de estado de autorización (Acceso Autorizado en emerald-50), botones centrales de píldora redondeada (rounded-2xl) para 'Configuración de la App' y 'Ayuda y Documentación', y botón de pie para 'Cerrar Sesión' con modal de confirmación con temporizador de seguridad de 5 segundos.
+
+Las tarjetas de obra (ProjectCard) implementan un layout horizontal cinematográfico: en la columna izquierda (1/3 del ancho) se despliega el afiche vertical con proporción de cine (aspect-[2/3], object-cover) o monograma cromático con fondo magenta degradado; en la columna derecha (2/3 del ancho) se estructuran los badges técnicos (FPS, resolución), título de la obra, creador original, tags de género, contador en tiempo real de festivales vinculados y botón de acceso directo. La tarjeta adopta esquinas rounded-3xl y acabado glassmorphic con sombras suaves de acento. En la esquina inferior derecha se sitúa el botón flotante FAB "+ Nueva Obra" para el alta ágil de nuevas producciones audiovisuales. Al seleccionar una obra, se actualiza el `currentProject` en el `ProjectContext`, habilitando el acceso a sus subcolecciones de festivales, planes y materiales.
 
 ---
 
@@ -260,4 +264,26 @@ Descripción y Arquitectura Explayada:
 AppSettingsView es la vista independiente de configuración del sistema accesible directamente desde el vestíbulo de proyectos sin requerir tener una obra activa seleccionada. Integra una cabecera con botón de retorno al catálogo de obras, ficha de perfil del usuario activo y un selector del tema visual del sistema (Cardigan Claro, Cardigan Noche y Cardigan Boceto) sincronizado a través de SkinContext.
 
 La vista alberga los motores de exportación e importación blindada de bases de datos. El motor de exportación consulta en Firestore todas las obras pertenecientes al usuario activo (`createdBy == user.email`) e itera recursivamente todas sus subcolecciones (festivals, film_data, distribution_plans, institutions, gallery, social_posts, reminders, notes, roadmap) para compilar y descargar un archivo JSON con timestamp en milisegundos. El motor de importación implementa un protocolo de seguridad con triple barrera obligatoria: 1) Inspección previa con validación de estructura y detección de duplicados renombrando con la leyenda '(Copia importada)', 2) Confirmación textual estricta requiriendo tipear 'IMPORTAR', y 3) Bloqueo temporal con cuenta regresiva de 5 segundos en el botón final de confirmación. La escritura en Firestore se ejecuta mediante lotes divididos en bloques de 400 operaciones (safeBatchCommit) para evitar desbordar el límite de 500 operaciones por batch. Adicionalmente, cuenta con un módulo de diagnóstico y limpieza de caché local.
+
+---
+
+## 🛡️ 19. Blindaje UI de la Matriz RBAC en Vistas Operativas
+
+Ficha Técnica del Subsistema:
+Ubicación: `src/components/FestivalListView.tsx`, `src/components/FestivalModal.tsx`, `src/components/DistributionPlansView.tsx`, `src/components/DistributionPlanDetailView.tsx`, `src/components/FilmDataView.tsx`, `src/App.tsx`  
+Categoría: Control de Acceso Basado en Roles (RBAC) en Capa Gráfica  
+
+Descripción y Arquitectura Explayada:
+El subsistema de blindaje RBAC en la interfaz sincroniza la experiencia visual con las reglas de seguridad de Firestore (`firestore.rules`). Consume el hook `useProjectRole()` de `ProjectContext` para aplicar restricciones granulares sin generar errores de consola ni alertas invasivas:
+
+FestivalListView y FestivalModal:
+Ocultamiento de datos financieros: los campos y píldoras informativas de tasas de inscripción (`Fee: {price}`) se omiten para usuarios con rol Colaborador o Invitado.
+Control de postulaciones: el clic interactivo para cambiar estado (`ChangeStatusModal`) y el botón flotante global FAB "+ Añadir Festival" se restringen exclusivamente a Propietarios y Distribuidores. En FestivalModal, el botón de guardado se deshabilita con un banner informativo sobrio indicando que la gestión está reservada a Propietarios y Distribuidores.
+
+DistributionPlansView y DistributionPlanDetailView:
+Control de planes y aprobación: los botones de alta, edición de metadatos, adición/remoción de festivales y el botón crítico de Aprobación Institucional con pase al catálogo oficial quedan habilitados exclusivamente para Propietarios y Distribuidores.
+Niveles de visualización: para usuarios con rol Colaborador, los planes se presentan en modo solo lectura manteniendo la exportación a PDF; para usuarios con rol Invitado, se presenta una pantalla de acceso restringido indicando los permisos requeridos.
+
+FilmDataView (Ficha Técnica y Dossier):
+Exclusividad técnica: la edición de la ficha técnica, sinopsis, especificaciones y ficha artística está reservada estrictamente al Propietario de la obra. Para los roles Distribuidor, Colaborador e Invitado, el botón de edición se reemplaza por un badge sobrio de "Solo Lectura".
 

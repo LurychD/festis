@@ -33,6 +33,7 @@ import {
 import { CountdownModal } from "./CountdownModal";
 import { cn } from "../utils/helpers";
 import { exportDistributionPlanPDF } from "../utils/distributionPlanPdfExport";
+import { useProjectRole } from "../context/ProjectContext";
 
 interface DistributionPlanDetailViewProps {
   planId: string;
@@ -63,6 +64,9 @@ export const DistributionPlanDetailView: React.FC<DistributionPlanDetailViewProp
   onBack,
   onSelectFestival,
 }) => {
+  const { isOwner, isDistributor, isGuest } = useProjectRole();
+  const canManagePlans = isOwner || isDistributor;
+
   const plan = distributionPlans.find((p) => p.id === planId);
 
   // Estados de modales
@@ -72,6 +76,24 @@ export const DistributionPlanDetailView: React.FC<DistributionPlanDetailViewProp
   
   // Modal de actualización de estado (Tira 2)
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
+
+  if (isGuest) {
+    return (
+      <div className="p-12 text-center bg-white/80 backdrop-blur-xl border border-slate-200 rounded-3xl shadow-sm max-w-lg mx-auto mt-8">
+        <Building className="w-10 h-10 text-slate-400 mx-auto mb-3" />
+        <h3 className="text-sm font-bold text-slate-800">Acceso Restringido</h3>
+        <p className="text-xs text-slate-500 mt-1">
+          Los planes de distribución están disponibles para miembros con rol Colaborador, Distribuidor o Propietario.
+        </p>
+        <button
+          onClick={onBack}
+          className="mt-4 px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold"
+        >
+          Volver
+        </button>
+      </div>
+    );
+  }
   const [targetStatus, setTargetStatus] = useState<DistributionPlanStatus | "">("");
   const [statusJustification, setStatusJustification] = useState("");
   const [statusTimer, setStatusTimer] = useState(3);
@@ -709,7 +731,7 @@ export const DistributionPlanDetailView: React.FC<DistributionPlanDetailViewProp
             {currentColors.label}
           </span>
 
-          {isAuthorized && (
+          {canManagePlans && (
             <div className="flex items-center gap-1.5 border-l border-slate-200 pl-2.5">
               
               {/* Botón Editar Plan (SVG sin emojis) */}
@@ -855,7 +877,7 @@ export const DistributionPlanDetailView: React.FC<DistributionPlanDetailViewProp
           </div>
 
           {/* Botón de Actualizar Estado reubicado en la Tira 2 */}
-          {isAuthorized && (
+          {canManagePlans && (
             <button
               onClick={handleOpenStatusModal}
               className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer inline-flex items-center gap-2 shadow-sm self-start sm:self-auto"
@@ -934,7 +956,7 @@ export const DistributionPlanDetailView: React.FC<DistributionPlanDetailViewProp
           </div>
 
           {/* Dos botones de acción bien diferenciados */}
-          {isAuthorized && (
+          {canManagePlans && (
             <div className="flex flex-wrap items-center gap-2.5">
               
               {/* Botón A: Vincular festivales preexistentes */}
@@ -1043,7 +1065,7 @@ export const DistributionPlanDetailView: React.FC<DistributionPlanDetailViewProp
                         Ver detalles de festival
                       </button>
                     )}
-                    {isAuthorized && (
+                    {canManagePlans && (
                       <button
                         onClick={() => handleDeleteDraftFestival(fest.id, fest.name)}
                         className="p-2 border border-slate-200 hover:border-rose-200 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition-all cursor-pointer"
@@ -1133,7 +1155,7 @@ export const DistributionPlanDetailView: React.FC<DistributionPlanDetailViewProp
                         Ver detalles de festival
                       </button>
                     )}
-                    {isAuthorized && (
+                    {canManagePlans && (
                       <button
                         onClick={() => handleUnlinkPreexisting(fest.id, fest.name)}
                         className="p-2 border border-slate-200 hover:border-rose-200 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-xl transition-all cursor-pointer"

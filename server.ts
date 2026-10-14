@@ -278,6 +278,40 @@ async function startServer() {
     next();
   });
 
+  // Directorio y servidor estático para almacenamiento multimedia multi-tenant
+  const uploadsStaticDir = path.join(process.cwd(), "public", "uploads");
+  if (!fs.existsSync(uploadsStaticDir)) {
+    fs.mkdirSync(uploadsStaticDir, { recursive: true });
+  }
+  app.use("/uploads", express.static(uploadsStaticDir));
+
+  // Endpoint de respaldo autónomo para subida de binarios ya procesados en cliente
+  app.post("/api/storage/upload", async (req, res) => {
+    try {
+      const { path: targetPath, base64Data } = req.body;
+      if (!targetPath || !base64Data) {
+        return res.status(400).json({ error: "Parámetros insuficientes." });
+      }
+
+      const safePath = targetPath.replace(/^\/+/, "").replace(/\.\./g, "");
+      const fullFilePath = path.join(uploadsStaticDir, safePath);
+      const fileDir = path.dirname(fullFilePath);
+
+      if (!fs.existsSync(fileDir)) {
+        fs.mkdirSync(fileDir, { recursive: true });
+      }
+
+      const buffer = Buffer.from(base64Data, "base64");
+      fs.writeFileSync(fullFilePath, buffer);
+
+      const publicUrl = `/uploads/${safePath}`;
+      return res.json({ success: true, url: publicUrl });
+    } catch (err: any) {
+      console.error("[STORAGE ENDPOINT ERROR]:", err);
+      return res.status(500).json({ error: err.message || "Error al almacenar archivo." });
+    }
+  });
+
   app.post("/api/send-2fa-recovery-code", async (req, res) => {
     try {
       const { email, phone, code } = req.body;
@@ -413,121 +447,142 @@ ${detectedUrl ? `\n\nEl texto fue extraído de esta URL: ${detectedUrl}. Puedes 
 ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
 `;
 
-      if (fileBase64) {
-         const hfToken = process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY;
-         const geminiApiKey = process.env.GEMINI_API_KEY;
+      // Motor de Inferencia: Gemini (prioridad con clave de clipboard o general) o Groq
+      const geminiApiKey = process.env.GEMINI_API_KEY_CLIPBOARD || process.env.GEMINI_API_KEY;
+      const groqApiKey = process.env.GROQ_API_KEY;
 
-         if (hfToken) {
-             // Use Hugging Face serverless API with meta-llama/Llama-3.2-11B-Vision-Instruct
-             // We can fall back to Qwen/Qwen2-VL-7B-Instruct if the first one fails
-             const modelsToTry = [
-                 "meta-llama/Llama-3.2-11B-Vision-Instruct",
-                 "Qwen/Qwen2-VL-7B-Instruct"
-             ];
-             
-             let lastError = null;
-             let parsed = null;
-
-             for (const model of modelsToTry) {
-                 try {
-                     const hfResponse = await fetch("https://api-inference.huggingface.co/v1/chat/completions", {
-                         method: "POST",
-                         headers: {
-                             "Authorization": `Bearer ${hfToken}`,
-                             "Content-Type": "application/json"
-                         },
-                         body: JSON.stringify({
-                             model: model,
-                             messages: [
-                                 {
-                                     role: "user",
-                                     content: [
-                                         { type: "text", text: prompt },
-                                         {
-                                             type: "image_url",
-                                             image_url: { url: `data:${mimeType || "image/jpeg"};base64,${fileBase64}` }
-                                         }
-                                     ]
-                                 }
-                             ],
-                             max_tokens: 1024,
-                             temperature: 0.1
-                         })
-                     });
-
-                     if (!hfResponse.ok) {
-                         const errText = await hfResponse.text();
-                         throw new Error(`HF error for ${model} (${hfResponse.status}): ${errText}`);
-                      }
-
-                      const resJson = await hfResponse.json();
-                      let contentStr = resJson.choices?.[0]?.message?.content || "{}";
-                      
-                      contentStr = contentStr.trim();
-                      if (contentStr.startsWith("```json")) {
-                          contentStr = contentStr.replace(/^```json/, "").replace(/```$/, "").trim();
-                      } else if (contentStr.startsWith("```")) {
-                          contentStr = contentStr.replace(/^```/, "").replace(/```$/, "").trim();
-                      }
-
-                      parsed = JSON.parse(contentStr);
-                      break; // Success, break out of loop
-                  } catch (err: any) {
-                      console.error(`Error with HF model ${model}:`, err.message);
-                      lastError = err;
-                  }
-              }
-
-              if (parsed) {
-                  return res.json({ success: true, festival: parsed });
-              } else {
-                  return res.status(500).json({ success: false, error: `Hugging Face parsing failed: ${lastError?.message || "Unknown error"}` });
-              }
-         } else if (geminiApiKey) {
-             const { GoogleGenAI } = await import("@google/genai");
-             const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-
-             const response = await ai.models.generateContent({
-                 model: "gemini-2.5-flash",
-                 contents: [
-                     {
-                         role: "user",
-                         parts: [
-                             { text: prompt },
-                             { inlineData: { data: fileBase64, mimeType: mimeType || "application/octet-stream" } }
-                         ]
-                     }
-                 ],
-                 config: {
-                     responseMimeType: "application/json"
-                 }
-              });
-              
-              const jsonStr = response.text || "{}";
-              const parsed = JSON.parse(jsonStr);
-              return res.json({ success: true, festival: parsed });
-         } else {
-             return res.status(500).json({ success: false, error: "Falta configurar HF_TOKEN o GEMINI_API_KEY para analizar archivos." });
-         }
-      } else {
-         const groqApiKey = process.env.GROQ_API_KEY;
-         if (!groqApiKey) {
-             return res.status(500).json({ success: false, error: "Missing GROQ_API_KEY." });
-         }
-         const groq = new Groq({ apiKey: groqApiKey });
-         const completion = await groq.chat.completions.create({
-             messages: [{ role: "user", content: prompt }],
-             model: "llama-3.3-70b-versatile",
-             response_format: { type: "json_object" },
-             temperature: 0.1
-         });
-         const jsonStr = completion.choices[0].message.content || "{}";
-         const parsed = JSON.parse(jsonStr);
-         return res.json({ success: true, festival: parsed });
+      if (geminiApiKey) {
+        try {
+          const { GoogleGenAI } = await import("@google/genai");
+          const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+          const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: prompt,
+            config: {
+              responseMimeType: "application/json"
+            }
+          });
+          const jsonStr = response.text || "{}";
+          const parsed = JSON.parse(jsonStr);
+          return res.json({ success: true, festival: parsed, engine: "gemini" });
+        } catch (geminiErr: any) {
+          console.warn("[parse-festival] Gemini falló, intentando alternativa:", geminiErr.message);
+          if (!groqApiKey) {
+            return res.status(500).json({ success: false, error: `Error en análisis con Gemini: ${geminiErr.message}` });
+          }
+        }
       }
+
+      if (groqApiKey) {
+        const groq = new Groq({ apiKey: groqApiKey });
+        const completion = await groq.chat.completions.create({
+          messages: [{ role: "user", content: prompt }],
+          model: "llama-3.3-70b-versatile",
+          response_format: { type: "json_object" },
+          temperature: 0.1
+        });
+        const jsonStr = completion.choices[0].message.content || "{}";
+        const parsed = JSON.parse(jsonStr);
+        return res.json({ success: true, festival: parsed, engine: "groq" });
+      }
+
+      return res.status(500).json({
+        success: false,
+        error: "No hay motor de IA configurado (configure GEMINI_API_KEY_CLIPBOARD, GEMINI_API_KEY o GROQ_API_KEY)."
+      });
     } catch (err: any) {
       console.error("Parsing error:", err);
       res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post("/api/parse-festivals-batch", async (req, res) => {
+    try {
+      const { rawText, items: rawItems, fechaReferencia } = req.body;
+      if (!rawText && (!rawItems || rawItems.length === 0)) {
+        return res.json({ success: true, items: [], fallbackToLocal: false });
+      }
+
+      const refDate = fechaReferencia || new Date().toISOString().split("T")[0];
+
+      const snippets: string[] = Array.isArray(rawItems) && rawItems.length > 0
+        ? rawItems.slice(0, 15) // Límite de seguridad
+        : (rawText || "").split(/\n\s*\n+/).filter((s: string) => s.trim().length > 15).slice(0, 15);
+
+      if (snippets.length === 0) {
+        return res.json({ success: true, items: [], fallbackToLocal: true });
+      }
+
+      const batchPrompt = `Analiza la lista de textos/convocatorias adjuntos y extrae los datos de festivales de cine.
+La fecha de referencia de hoy es: ${refDate}. Interpreta expresiones relativas ("este viernes", "el mes próximo", "en dos semanas") calculando a partir de esta fecha ${refDate}.
+Devuelve ÚNICAMENTE un objeto JSON válido con la propiedad "festivals" que contenga un arreglo de objetos con este esquema:
+{
+  "festivals": [
+    {
+      "name": "Nombre oficial",
+      "country": "País o 'Ciudad, País'",
+      "deadline": "YYYY-MM-DD o null",
+      "newsDate": "YYYY-MM-DD o null",
+      "category": "Cortometraje / Largometraje / Animación / etc",
+      "platform": "FilmFreeway / Festhome / Shortfilmdepot / Propia / Google Forms",
+      "price": "Precio en moneda original o 'Gratis'",
+      "fee": 0,
+      "link": "URL válida si existe o null",
+      "observations": "Breve nota descriptiva o null"
+    }
+  ]
+}
+
+Convocatorias a analizar:
+${snippets.map((s, idx) => `--- ITEM ${idx + 1} ---\n${s}`).join("\n\n")}`;
+
+      // 1. Intento con Groq Llama 3.3
+      const groqApiKey = process.env.GROQ_API_KEY;
+      if (groqApiKey) {
+        try {
+          const groq = new Groq({ apiKey: groqApiKey });
+          const completion = await groq.chat.completions.create({
+            messages: [{ role: "user", content: batchPrompt }],
+            model: "llama-3.3-70b-versatile",
+            response_format: { type: "json_object" },
+            temperature: 0.1
+          });
+          const jsonStr = completion.choices[0].message.content || "{}";
+          const parsed = JSON.parse(jsonStr);
+          const list = Array.isArray(parsed.festivals) ? parsed.festivals : (Array.isArray(parsed) ? parsed : []);
+          return res.json({ success: true, items: list, engine: "groq" });
+        } catch (groqErr) {
+          console.warn("[parse-festivals-batch] Groq falló, recurriendo a Gemini:", (groqErr as any).message);
+        }
+      }
+
+      // 2. Fallback a Gemini 2.5 Flash (usando clave de clipboard dedicada o principal)
+      const geminiApiKey = process.env.GEMINI_API_KEY_CLIPBOARD || process.env.GEMINI_API_KEY;
+      if (geminiApiKey) {
+        try {
+          const { GoogleGenAI } = await import("@google/genai");
+          const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+          const response = await ai.models.generateContent({
+            model: "gemini-2.5-flash",
+            contents: batchPrompt,
+            config: {
+              responseMimeType: "application/json"
+            }
+          });
+          const jsonStr = response.text || "{}";
+          const parsed = JSON.parse(jsonStr);
+          const list = Array.isArray(parsed.festivals) ? parsed.festivals : (Array.isArray(parsed) ? parsed : []);
+          return res.json({ success: true, items: list, engine: "gemini" });
+        } catch (geminiErr) {
+          console.warn("[parse-festivals-batch] Gemini falló, delegando a local determinista:", (geminiErr as any).message);
+        }
+      }
+
+      // 3. Fallback seguro a local determinista (sin romper el flujo)
+      return res.json({ success: true, items: [], fallbackToLocal: true });
+    } catch (err: any) {
+      console.error("[parse-festivals-batch] Error no controlado:", err);
+      return res.json({ success: true, items: [], fallbackToLocal: true });
     }
   });
 
@@ -640,422 +695,6 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
       res.json({ success: true });
     } catch (e: any) {
       console.error(e);
-      res.status(500).json({ success: false, error: e.message });
-    }
-  });
-
-  // GEMINI SPARK READ-ONLY BACKEND API & GEM INTEGRATION ENDPOINTS
-  app.get("/api/spark/openapi.json", (req, res) => {
-    const origin = `${req.protocol}://${req.get('host')}`;
-    res.json({
-      openapi: "3.0.0",
-      info: {
-        title: "Festis API para Gemini Spark",
-        description: "API de integración directa con Gemini Spark y Gems para consulta de festivales y convocatorias.",
-        version: "1.0.0"
-      },
-      servers: [{ url: origin }],
-      paths: {
-        "/api/spark/festivals": {
-          get: {
-            summary: "Obtener lista completa de festivales y convocatorias",
-            parameters: [
-              { name: "key", in: "query", description: "Clave secreta de la API Spark", required: false, schema: { type: "string" } },
-              { name: "status", in: "query", description: "Filtrar por estado (ej: POR_ENVIAR, EN_REVISION, SELECCIONADO)", required: false, schema: { type: "string" } }
-            ],
-            responses: {
-              "200": { description: "Lista estructurada de festivales en formato JSON" }
-            }
-          }
-        },
-        "/api/gemini-spark/read": {
-          get: {
-            summary: "Consulta asistida por IA sobre los festivales",
-            parameters: [
-              { name: "key", in: "query", description: "Clave secreta de la API Spark", required: false, schema: { type: "string" } },
-              { name: "q", in: "query", description: "Pregunta o consulta para la IA", required: false, schema: { type: "string" } }
-            ],
-            responses: {
-              "200": { description: "Respuesta en lenguaje natural generada por la IA" }
-            }
-          },
-          post: {
-            summary: "Consulta asistida por IA sobre los festivales (POST)",
-            requestBody: {
-              required: true,
-              content: {
-                "application/json": {
-                  schema: {
-                    type: "object",
-                    properties: {
-                      query: { type: "string" },
-                      sparkApiKey: { type: "string" }
-                    }
-                  }
-                }
-              }
-            },
-            responses: {
-              "200": { description: "Respuesta generada por la IA" }
-            }
-          }
-        }
-      }
-    });
-  });
-
-  // Plain Text / Markdown Endpoint for Gemini Spark link scraping & prompt reading
-  app.get(["/api/spark/markdown", "/api/spark/festivals.md", "/api/spark/summary.txt"], async (req, res) => {
-    try {
-      const headerKey = req.headers["x-spark-api-key"] || (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, "") : undefined);
-      const queryKey = req.query.key || req.query.apiKey || req.query.sparkApiKey;
-      const providedKey = (headerKey || queryKey || "").toString().trim();
-
-      let isEnabled = true;
-      let configuredSecret = process.env.SPARK_API_SECRET || "";
-
-      if (isFirebaseAdminConfigured) {
-        try {
-          const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-db-a');
-          const sparkDoc = await db.collection('system_settings').doc('gemini_spark').get();
-          if (sparkDoc.exists) {
-            const data = sparkDoc.data();
-            isEnabled = data?.enabled ?? true;
-            if (data?.apiKey) configuredSecret = data.apiKey;
-          }
-        } catch (e) {}
-      }
-
-      if (!isEnabled) {
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        return res.status(200).send("Error: El servicio Gemini Spark está deshabilitado en la configuración de la app.");
-      }
-
-      if (configuredSecret && providedKey !== configuredSecret) {
-        res.setHeader("Content-Type", "text/plain; charset=utf-8");
-        return res.status(401).send("Error: Acceso no autorizado. Clave 'key' de API no válida o ausente en la URL.");
-      }
-
-      let festivalsData: any[] = [];
-      if (isFirebaseAdminConfigured) {
-        try {
-          const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-db-a');
-          const snap = await db.collectionGroup('festivals').get();
-          snap.forEach(doc => {
-            const d = doc.data();
-            festivalsData.push({
-              id: doc.id,
-              name: d.name || 'Sin nombre',
-              status: d.status || 'Por enviar',
-              deadline: d.deadline || '',
-              newsDate: d.newsDate || '',
-              projectionDate: d.projectionDate || '',
-              category: d.category || '',
-              platform: d.platform || '',
-              price: d.price || '',
-              country: d.country || '',
-              link: d.link || '',
-              observations: d.observations || ''
-            });
-          });
-        } catch (e) {}
-      }
-
-      // Format as clean Markdown document
-      let md = `# FESTIS - BASE DE DATOS DE FESTIVALES Y CONVOCATORIAS\n`;
-      md += `Fecha de actualización: ${new Date().toLocaleDateString('es-AR')} ${new Date().toLocaleTimeString('es-AR')}\n`;
-      md += `Total de convocatorias: ${festivalsData.length}\n\n`;
-      md += `---\n\n`;
-
-      festivalsData.forEach((f, idx) => {
-        md += `### ${idx + 1}. ${f.name.toUpperCase()}\n`;
-        md += `- **Estado actual:** ${f.status}\n`;
-        if (f.deadline) md += `- **Fecha límite cierre:** ${f.deadline}\n`;
-        if (f.newsDate) md += `- **Fecha de novedades/noticias:** ${f.newsDate}\n`;
-        if (f.projectionDate) md += `- **Fecha de proyección:** ${f.projectionDate}\n`;
-        if (f.category) md += `- **Categoría:** ${f.category}\n`;
-        if (f.platform) md += `- **Plataforma:** ${f.platform}\n`;
-        if (f.price) md += `- **Fee / Precio:** ${f.price}\n`;
-        if (f.country) md += `- **País / Ciudad:** ${f.country}\n`;
-        if (f.link) md += `- **Link oficial:** ${f.link}\n`;
-        if (f.observations) md += `- **Observaciones:** ${f.observations}\n`;
-        md += `\n`;
-      });
-
-      // Record access event
-      if (isFirebaseAdminConfigured) {
-        try {
-          const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-db-a');
-          await db.collection('system_settings').doc('gemini_spark_last_access').set({
-            timestamp: new Date().toISOString(),
-            query: "Lectura directa Markdown (/api/spark/markdown)",
-            festivalsCount: festivalsData.length,
-            eventId: Date.now().toString()
-          });
-        } catch (e) {}
-      }
-
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      return res.status(200).send(md);
-    } catch (e: any) {
-      res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      return res.status(500).send(`Error interno: ${e.message}`);
-    }
-  });
-
-  // Direct Data Endpoint for Gemini Spark / Custom Gems (GET & POST)
-  app.all(["/api/spark/festivals", "/api/spark/data"], async (req, res) => {
-    try {
-      const headerKey = req.headers["x-spark-api-key"] || (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, "") : undefined);
-      const queryKey = req.query.key || req.query.apiKey || req.query.sparkApiKey;
-      const bodyKey = req.body?.sparkApiKey || req.body?.key;
-      const providedKey = (headerKey || queryKey || bodyKey || "").toString().trim();
-
-      let isEnabled = true;
-      let configuredSecret = process.env.SPARK_API_SECRET || "";
-
-      if (isFirebaseAdminConfigured) {
-        try {
-          const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-db-a');
-          const sparkDoc = await db.collection('system_settings').doc('gemini_spark').get();
-          if (sparkDoc.exists) {
-            const data = sparkDoc.data();
-            isEnabled = data?.enabled ?? true;
-            if (data?.apiKey) configuredSecret = data.apiKey;
-          }
-        } catch (e) {}
-      }
-
-      if (!isEnabled) {
-        return res.status(200).json({ success: false, error: "Servicio Gemini Spark deshabilitado en configuración." });
-      }
-
-      if (configuredSecret && providedKey !== configuredSecret) {
-        return res.status(401).json({ success: false, error: "Clave de API no válida. Proporcione 'key' en URL o header 'x-spark-api-key'." });
-      }
-
-      let festivalsData: any[] = [];
-      if (isFirebaseAdminConfigured) {
-        try {
-          const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-db-a');
-          const snap = await db.collectionGroup('festivals').get();
-          snap.forEach(doc => {
-            const d = doc.data();
-            festivalsData.push({
-              id: doc.id,
-              name: d.name,
-              status: d.status,
-              deadline: d.deadline,
-              newsDate: d.newsDate,
-              projectionDate: d.projectionDate,
-              category: d.category,
-              platform: d.platform,
-              price: d.price,
-              country: d.country,
-              link: d.link,
-              observations: d.observations
-            });
-          });
-        } catch (e) {}
-      }
-
-      const filterStatus = (req.query.status || req.body?.status || "").toString().trim().toUpperCase();
-      if (filterStatus) {
-        festivalsData = festivalsData.filter(f => (f.status || "").toUpperCase().replace(/_/g, " ") === filterStatus.replace(/_/g, " "));
-      }
-
-      // Record access event
-      if (isFirebaseAdminConfigured) {
-        try {
-          const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-db-a');
-          await db.collection('system_settings').doc('gemini_spark_last_access').set({
-            timestamp: new Date().toISOString(),
-            query: req.query.status ? `Consulta estado ${req.query.status}` : "Consulta directa JSON de festivales",
-            festivalsCount: festivalsData.length,
-            eventId: Date.now().toString()
-          });
-        } catch (e) {}
-      }
-
-      return res.json({
-        app: "Festis",
-        timestamp: new Date().toISOString(),
-        total: festivalsData.length,
-        festivals: festivalsData
-      });
-    } catch (e: any) {
-      return res.status(500).json({ success: false, error: e.message });
-    }
-  });
-
-  // AI Read Endpoint for Gemini Spark (GET & POST)
-  app.all(["/api/gemini-spark/read", "/api/spark/read"], async (req, res) => {
-    try {
-      const queryParam = req.query.q || req.query.query;
-      const bodyQuery = req.body?.query;
-      const query = (queryParam || bodyQuery || "").toString().trim();
-
-      const headerKey = req.headers["x-spark-api-key"] || (req.headers.authorization ? req.headers.authorization.replace(/^Bearer\s+/i, "") : undefined);
-      const queryKey = req.query.key || req.query.apiKey || req.query.sparkApiKey;
-      const bodyKey = req.body?.sparkApiKey || req.body?.key;
-      const providedKey = (headerKey || queryKey || bodyKey || "").toString().trim();
-      
-      let activeState = req.body?.isEnabled;
-      let configuredSecret = process.env.SPARK_API_SECRET || "";
-
-      if (isFirebaseAdminConfigured) {
-        try {
-          const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-db-a');
-          const sparkDoc = await db.collection('system_settings').doc('gemini_spark').get();
-          if (sparkDoc.exists) {
-            const data = sparkDoc.data();
-            if (activeState === undefined) activeState = data?.enabled ?? true;
-            if (data?.apiKey) configuredSecret = data.apiKey;
-          }
-        } catch (e) {}
-      }
-
-      if (activeState === undefined) activeState = true;
-
-      if (activeState === false) {
-        return res.status(200).json({
-          success: false,
-          disabled: true,
-          error: "El acceso en modo lectura de Gemini Spark está deshabilitado desde la configuración."
-        });
-      }
-
-      // API Key Security Validation
-      if (configuredSecret && providedKey !== configuredSecret) {
-        return res.status(401).json({
-          success: false,
-          error: "Acceso no autorizado. Se requiere una API Key válida (query 'key' o Header 'x-spark-api-key')."
-        });
-      }
-
-      const geminiApiKey = process.env.GEMINI_API_KEY;
-      if (!geminiApiKey) {
-        return res.status(500).json({
-          success: false,
-          error: "Falta configurar GEMINI_API_KEY en el servidor para el SDK de Gemini Spark."
-        });
-      }
-
-      // Fetch festival data in read-only mode for Gemini Spark context
-      let festivalsData: any[] = [];
-      if (isFirebaseAdminConfigured) {
-        try {
-          const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-db-a');
-          const snap = await db.collectionGroup('festivals').limit(100).get();
-          snap.forEach(doc => {
-            const data = doc.data();
-            festivalsData.push({
-              id: doc.id,
-              name: data.name,
-              status: data.status,
-              deadline: data.deadline,
-              newsDate: data.newsDate,
-              projectionDate: data.projectionDate,
-              category: data.category,
-              platform: data.platform,
-              price: data.price,
-              country: data.country,
-              link: data.link,
-              observations: data.observations
-            });
-          });
-        } catch (dbErr) {
-          console.warn("Could not load festivals for Gemini Spark read context:", dbErr);
-        }
-      }
-
-      const { GoogleGenAI } = await import("@google/genai");
-      const ai = new GoogleGenAI({ apiKey: geminiApiKey });
-
-      const promptContext = `Eres el asistente oficial de backend Gemini Spark operando en MODO LECTURA para Festis.
-Tu función es responder al usuario en lenguaje natural sobre sus festivales, estado de postulaciones y cierres.
-
-Datos actuales de festivales en la plataforma (${festivalsData.length} festivales cargados):
-${JSON.stringify(festivalsData, null, 2)}
-
-Consulta del usuario: ${query || "Resumen general de estado de los festivales y próximas fechas límites."}
-Responde directamente en español claro, directo y conversacional. No incluyas código HTML ni scripts.
-`;
-
-      const response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: promptContext }]
-          }
-        ]
-      });
-
-      // Record access event for real-time frontend notifications (Toast)
-      if (isFirebaseAdminConfigured) {
-        try {
-          const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-db-a');
-          await db.collection('system_settings').doc('gemini_spark_last_access').set({
-            timestamp: new Date().toISOString(),
-            query: query || "Consulta general de festivales",
-            festivalsCount: festivalsData.length,
-            eventId: Date.now().toString()
-          });
-        } catch (dbErr) {
-          console.warn("Could not record Gemini Spark read access event:", dbErr);
-        }
-      }
-
-      return res.json({
-        success: true,
-        disabled: false,
-        response: response.text || "Sin respuesta generada.",
-        query: query || "Resumen general",
-        dataSummary: {
-          festivalsLoaded: festivalsData.length,
-          timestamp: new Date().toISOString()
-        }
-      });
-    } catch (err: any) {
-      console.error("Error en Gemini Spark read endpoint:", err);
-      return res.status(500).json({ success: false, error: err.message });
-    }
-  });
-
-  app.get("/api/gemini-spark/status", async (req, res) => {
-    try {
-      let isEnabled = true;
-      let configuredSecret = process.env.SPARK_API_SECRET || "";
-      if (isFirebaseAdminConfigured) {
-        try {
-          const firebaseApp = getApp();
-          const db = getFirestore(firebaseApp, 'festis-db-a');
-          const sparkDoc = await db.collection('system_settings').doc('gemini_spark').get();
-          if (sparkDoc.exists) {
-            const data = sparkDoc.data();
-            isEnabled = data?.enabled ?? true;
-            if (data?.apiKey) configuredSecret = data.apiKey;
-          }
-        } catch (e) {}
-      }
-      res.json({
-        success: true,
-        enabled: isEnabled,
-        mode: "read-only",
-        hasApiKey: !!process.env.GEMINI_API_KEY,
-        requiresAuth: !!configuredSecret
-      });
-    } catch (e: any) {
       res.status(500).json({ success: false, error: e.message });
     }
   });
