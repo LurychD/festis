@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { FestivalModal } from "../components/FestivalModal";
 import { ProjectProvider } from "../context/ProjectContext";
-import { Festival } from "../types";
+import { Festival, FestivalStatus } from "../types";
 
 // Mock de audio y funciones de ayuda
 vi.mock("../utils/storageHelpers", () => ({
@@ -30,7 +30,7 @@ const defaultProps = {
   setSelectedFestival: mockSetSelectedFestival,
   addAuditLog: mockAddAuditLog,
   showAlert: mockShowAlert,
-  platforms: [{ id: "1", name: "FilmFreeway", isDefault: true }],
+  platforms: [{ id: "1", name: "FilmFreeway", icon: "Globe" }],
   distributionPlans: [],
 };
 
@@ -75,7 +75,9 @@ describe("FestivalModal - Clipboard Permissions-Policy Fallback & Ergonomics", (
       name: "Sitges Film Festival",
       country: "España",
       deadline: "2026-07-15",
-      status: "Inscripto",
+      type: "Internacional",
+      tasks: [],
+      status: FestivalStatus.POR_ENVIAR,
       statusHistory: [],
     };
     const { unmount: unmountResidual } = renderWithContext(

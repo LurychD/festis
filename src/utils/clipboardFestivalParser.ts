@@ -26,9 +26,11 @@ try {
 
 export interface ExtractedFestivalCandidate extends Partial<Festival> {
   rawSnippet?: string;
+  rawNotes?: string;
   detectedAccreditations?: string[];
   extractionConfidence?: number;
   detectedCity?: string;
+  city?: string;
   isClosedOrDiscarded?: boolean;
 }
 

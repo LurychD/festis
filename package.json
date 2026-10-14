@@ -1,11 +1,12 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "10.sep.2026-a",
+  "version": "Beta 0.5",
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
-    "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "dev": "node scripts/generate-build-info.js && tsx server.ts",
+    "build": "node scripts/generate-build-info.js && vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "build-info": "node scripts/generate-build-info.js",
     "start": "node dist/server.cjs",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",

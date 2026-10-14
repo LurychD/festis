@@ -3,6 +3,17 @@
 # ==========================================
 FROM node:20-alpine AS builder
 
+# Instalar git para extracción de metadatos de commit durante la compilación
+RUN apk add --no-cache git
+
+# Argumentos opcionales para CI/CD y fly deploy
+ARG COMMIT_SHA
+ARG COMMIT_COUNT
+ARG BUILD_DATE
+ENV VITE_COMMIT_SHA=${COMMIT_SHA}
+ENV VITE_COMMIT_COUNT=${COMMIT_COUNT}
+ENV VITE_BUILD_DATE=${BUILD_DATE}
+
 # Directorio de trabajo
 WORKDIR /app
 

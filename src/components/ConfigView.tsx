@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { cn } from "../utils/helpers";
-import { APP_VERSION } from "../version";
+import { APP_VERSION, COMMIT_NUMBER, COMMIT_HASH } from "../version";
 import {
   Lock,
   MonitorPlay,
@@ -2742,11 +2742,9 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
               >
                 Versión {APP_VERSION}
               </div>
-              <div className="flex items-center gap-2 text-[10px] font-bold uppercase bg-neutral-800 text-neutral-400 px-3 py-1.5 rounded-lg w-full sm:w-auto">
-                <Github className="w-3 h-3 text-neutral-500" />
-                Commit:{" "}
-                {(import.meta as any).env.VITE_GITHUB_SHA?.substring(0, 7) ||
-                  "local-dev"}
+              <div className="flex items-center gap-2 text-[10px] font-bold uppercase bg-neutral-800 text-neutral-300 px-3 py-1.5 rounded-lg w-full sm:w-auto">
+                <Github className="w-3 h-3 text-neutral-400" />
+                Commit: r{COMMIT_NUMBER} ({COMMIT_HASH})
               </div>
             </div>
 

@@ -24,6 +24,7 @@ npm run test
 - **Librerías de interacción:** `@testing-library/react`, `@testing-library/jest-dom` y `@testing-library/user-event`.
 - **Setup y limpieza:** `src/test/setup.ts` ejecuta `cleanup()` de forma transparente tras cada caso de prueba (`afterEach`).
 - **Suites implementadas:**
+  - `src/test/versionAndBuildInfo.test.ts`: Pruebas de contrato de versionado (`Beta 0.5`), extracción de número y hash de commit de Git, resiliencia en generación de metadatos para Docker/Fly.io y blindaje contra caídas a `"local"` o `"local-dev"`.
   - `src/test/ProjectMembersPanel.test.tsx`: Smoke test integral sobre la gestión de miembros, validando renderizado de integrantes, generador de invitaciones para rol Propietario, selector de roles (`distribuidor`, `colaborador`, `guest`) y modo solo lectura para usuarios con permisos restringidos.
 
 ---
@@ -102,7 +103,19 @@ Antes de liberar una nueva versión a producción, asegúrese de cumplir los sig
 
 ## 📦 6. Historial de Versiones y Registro de Cambios (Changelog)
 
-### Versión `10.sep.2026-a` (Corte de Producción)
+### Versión `Beta 0.5` (Corte de Madurez y Despliegue en Fly.io)
+- **Versionado Global Beta 0.5:**
+  - Unificación de la versión en `Beta 0.5` en `package.json`, `src/version.ts` y componentes de UI (`ConfigView`, `DocsWikiView`).
+- **Motor de Inyección de Commit y Resiliencia en Fly.io:**
+  - Creación del generador `scripts/generate-build-info.js` y artefacto `src/build-info.json` para persistir número correlativo de commit (`r142`), hash abreviado (`a5b8e9f`) y marca temporal de build.
+  - Erradicación de lecturas frágiles con fallback estático `"local-dev"` o `"local"`.
+  - Instalación de `git` en la etapa builder de `Dockerfile` y remoción de `.git` en `.dockerignore` para permitir extracción directa durante el despliegue con `fly deploy`.
+  - Soporte para argumentos de construcción `--build-arg COMMIT_SHA` y `--build-arg COMMIT_COUNT`.
+- **Suite de Pruebas Automatizadas (`src/test/versionAndBuildInfo.test.ts`):**
+  - Pruebas estrictas con aserciones literales sobre número de commit y hash de Git.
+  - Validación de casos negativos ante ausencia de Git, variables fraudulentas y resiliencia en contenedores sin repositorio.
+
+### Versión `10.sep.2026-a` (Corte Previo de Producción)
 - **Banner Unificado de Planes de Distribución en Festivales:**
   - Integración en la cabecera de `FestivalDetailModal.tsx` informando si el festival pertenece a uno o más Planes de Distribución activos (`distribution_plans_Cardigan`), mostrando el nombre del plan, el presupuesto asignado y un acceso directo reactivo para abrirlo en la pestaña de Planes.
 - **Motor de Exportación PDF de Planes de Distribución (`distributionPlanPdfExport.ts`):**
