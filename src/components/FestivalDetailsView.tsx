@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Festival, FestivalStatus, Task, StatusHistoryEntry, Reminder, DistributionPlan } from '../types';
-import { ChevronRight, Edit2, Trash2, Globe, Calendar as CalendarIcon, ExternalLink, Projector, User, Plus, CheckCircle2, Circle, Pin, PinOff, Archive, ArchiveRestore, History, Clock, RefreshCw, Copy, Check, CheckSquare, FileText, Layers, Link2, FlaskConical, Bell, Building, ShieldCheck } from 'lucide-react';
+import { ChevronRight, Edit2, Trash2, Globe, Calendar as CalendarIcon, ExternalLink, Projector, User, Plus, CheckCircle2, Circle, Pin, PinOff, Archive, ArchiveRestore, History, Clock, RefreshCw, Copy, Check, CheckSquare, FileText, Layers, Link2, FlaskConical, Bell, Building, ShieldCheck, BarChart3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn, getStatusColorStyles, getStatusIcon, formatDisplayDate } from '../utils/helpers';
+import { isNewFestival } from '../utils/dateUtils';
 import { ChangeStatusModal } from './ChangeStatusModal';
 
 interface FestivalDetailsViewProps {
@@ -355,12 +356,12 @@ export const FestivalDetailsView: React.FC<FestivalDetailsViewProps> = ({
               </span>
             )}
             {f.includeInStats === false ? (
-              <span className="text-[10px] font-black uppercase tracking-widest bg-amber-600 text-white px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1" title="Excluido de las métricas y estadísticas de la app">
-                📊 Excluido de Stats
+              <span className="text-[10px] font-black uppercase tracking-widest bg-amber-600 text-white px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1.5" title="Excluido de las métricas y estadísticas de la app">
+                <BarChart3 className="w-3 h-3" /> Excluido de Stats
               </span>
             ) : (isDebugMode || f.isTestFestival) ? (
-              <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-600 text-white px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1" title="Contabilizado en las métricas e informes de la app">
-                📊 Incluido en Stats
+              <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-600 text-white px-2.5 py-1 rounded-full shadow-sm flex items-center gap-1.5" title="Contabilizado en las métricas e informes de la app">
+                <BarChart3 className="w-3 h-3" /> Incluido en Stats
               </span>
             ) : null}
         </div>
@@ -369,7 +370,14 @@ export const FestivalDetailsView: React.FC<FestivalDetailsViewProps> = ({
             <img src={f.laurel} alt="Laurel" className="h-24 object-contain rounded-[15px] p-2" style={{ backgroundColor: f.laurelBg === 'white' ? '#ffffff' : f.laurelBg === 'black' ? '#000000' : 'transparent' }} />
           </div>
         )}
-        <h1 className="text-4xl font-black tracking-tighter leading-tight text-slate-800">{f.name}</h1>
+        <div className="flex items-center gap-3 flex-wrap">
+          <h1 className="text-4xl font-black tracking-tighter leading-tight text-slate-800">{f.name}</h1>
+          {isNewFestival(f.createdAt) && (
+            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2.5 py-1 rounded-full shadow-sm inline-flex items-center">
+              Nuevo
+            </span>
+          )}
+        </div>
         <div className="flex gap-2 flex-wrap items-center">
            <p className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-black italic bg-slate-100/80 text-slate-500 px-3 py-1.5 rounded-lg border border-slate-200/60 shadow-sm w-fit">
              <Globe className="h-3.5 w-3.5 text-[#e91e63]" /> {f.country}

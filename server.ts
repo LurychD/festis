@@ -456,7 +456,7 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
           const { GoogleGenAI } = await import("@google/genai");
           const ai = new GoogleGenAI({ apiKey: geminiApiKey });
           const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.8-flash",
             contents: prompt,
             config: {
               responseMimeType: "application/json"
@@ -513,7 +513,18 @@ ${fileName ? `\n\nArchivo adjunto: ${fileName}` : ""}
         return res.json({ success: true, items: [], fallbackToLocal: true });
       }
 
-      const batchPrompt = `Analiza la lista de textos/convocatorias adjuntos y extrae los datos de festivales de cine.
+      // Filtro defensivo del servidor contra código fuente y reportes de testing
+      const hasCodeOrReportPatterns = /import\s+.*from|export\s+(?:const|function|interface|type|class)|<[a-z0-9]+|REPORTE DE AUDITORÍA|CONTROL DE CALIDAD|Vitest|error TS\d+|FestivalModal|FestivalListView/i.test(snippets.join("\n"));
+      if (hasCodeOrReportPatterns) {
+        return res.json({ success: true, items: [], fallbackToLocal: false });
+      }
+
+      const batchPrompt = `Eres un extractor estricto de convocatorias cinematográficas para Festis.
+REGLAS DE ORO DE CARDIGAN CONTRA ALUCINACIONES:
+1. PROHIBICIÓN ABSOLUTA: Queda terminantemente prohibido interpretar código fuente (TypeScript, JavaScript, React, HTML), nombres de componentes de software (ej: FestivalModal, FestivalListView, BatchItemCandidate), reportes de testing/QA, trazas de error o recetas de cocina como festivales de cine.
+2. Si el texto adjunto es código fuente, un reporte de pruebas de software, un log técnico o no contiene convocatorias reales con organizador, fecha o arancel verificable, debes responder ESTRICTAMENTE: { "festivals": [] }.
+3. Solo extrae festivales legítimos de cine. Si no hay convocatorias reales, responde { "festivals": [] }.
+
 La fecha de referencia de hoy es: ${refDate}. Interpreta expresiones relativas ("este viernes", "el mes próximo", "en dos semanas") calculando a partir de esta fecha ${refDate}.
 Devuelve ÚNICAMENTE un objeto JSON válido con la propiedad "festivals" que contenga un arreglo de objetos con este esquema:
 {
@@ -563,7 +574,7 @@ ${snippets.map((s, idx) => `--- ITEM ${idx + 1} ---\n${s}`).join("\n\n")}`;
           const { GoogleGenAI } = await import("@google/genai");
           const ai = new GoogleGenAI({ apiKey: geminiApiKey });
           const response = await ai.models.generateContent({
-            model: "gemini-2.5-flash",
+            model: "gemini-3.8-flash",
             contents: batchPrompt,
             config: {
               responseMimeType: "application/json"

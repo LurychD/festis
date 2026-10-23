@@ -3,6 +3,7 @@ import { Festival } from '../types';
 import { extractPlatformSlug, lookupCanonicalFestival } from '../data/seed';
 
 export type DeduplicationClassification = 'DUPLICADO' | 'NUEVA_EDICION' | 'UNICO';
+export type DeduplicationOrigin = 'PROJECT_WORK' | 'DAILY_CACHE' | 'BATCH_INTERNAL';
 
 export interface DeduplicationResult {
   isDuplicate: boolean;
@@ -11,6 +12,7 @@ export interface DeduplicationResult {
   confidence: number; // 0.0 a 1.0
   layerMatched?: 1 | 2 | 3 | 4 | 5;
   reason?: string;
+  origin?: DeduplicationOrigin;
   detectedEdition?: {
     candidateYear?: number;
     existingYear?: number;
@@ -319,37 +321,70 @@ export function checkFestivalDuplicate(
  */
 export function deduplicateBatch(
   candidates: Partial<Festival>[],
-  existingFestivals: Festival[]
+  existingFestivals: Festival[],
+  dailyCachedFestivals: Partial<Festival>[] = []
 ): CandidateWithDeduplication[] {
   const result: CandidateWithDeduplication[] = [];
-  const runningPool: Festival[] = [...existingFestivals];
+  const runningProjectPool: Festival[] = [...existingFestivals];
+  const runningDailyPool: Festival[] = dailyCachedFestivals.map((d, idx) => ({
+    id: d.id || `daily_cache_${idx}`,
+    name: d.name || 'Festival diario',
+    country: d.country || 'A confirmar',
+    type: d.type || 'Festival',
+    status: d.status || ('Por enviar' as any),
+    deadline: d.deadline,
+    link: d.link,
+    tasks: []
+  }));
 
   for (let i = 0; i < candidates.length; i++) {
     const cand = candidates[i];
-    const dedup = checkFestivalDuplicate(cand, runningPool);
 
-    if (dedup.isDuplicate) {
+    // 1. Cotejar primero contra Pool A: Festivales existentes en la Obra Activa de Firestore
+    const dedupProject = checkFestivalDuplicate(cand, runningProjectPool);
+    if (dedupProject.isDuplicate) {
       result.push({
         ...cand,
-        deduplication: dedup,
-        isBatchDuplicate: dedup.matchedFestival?.id?.startsWith('temp_batch_')
+        deduplication: {
+          ...dedupProject,
+          origin: 'PROJECT_WORK',
+          reason: `Ya en seguimiento: Coincide con festival existente (${dedupProject.matchedFestival?.name || 'obra'})`
+        },
+        isBatchDuplicate: dedupProject.matchedFestival?.id?.startsWith('temp_batch_')
       });
-    } else {
-      result.push({
-        ...cand,
-        deduplication: { isDuplicate: false, classification: 'UNICO', confidence: 0 }
-      });
-
-      runningPool.push({
-        id: `temp_batch_${i}`,
-        name: cand.name || `Candidato ${i + 1}`,
-        country: cand.country || "A confirmar",
-        type: cand.type || "Festival🎬",
-        status: cand.status || ("Por enviar" as any),
-        link: cand.link,
-        tasks: []
-      });
+      continue;
     }
+
+    // 2. Cotejar contra Pool B: Festivales analizados previamente en las últimas 24 horas
+    const dedupDaily = checkFestivalDuplicate(cand, runningDailyPool);
+    if (dedupDaily.isDuplicate) {
+      result.push({
+        ...cand,
+        deduplication: {
+          ...dedupDaily,
+          origin: 'DAILY_CACHE',
+          reason: `¿Es la misma convocatoria? Coincide con un texto analizado anteriormente hoy (${dedupDaily.matchedFestival?.name || 'copy previo'})`
+        }
+      });
+      continue;
+    }
+
+    // 3. Candidato único en ambos pools
+    result.push({
+      ...cand,
+      deduplication: { isDuplicate: false, classification: 'UNICO', confidence: 0 }
+    });
+
+    // Registrar en runningProjectPool para detectar duplicados internos dentro del mismo lote
+    runningProjectPool.push({
+      id: `temp_batch_${i}`,
+      name: cand.name || `Candidato ${i + 1}`,
+      country: cand.country || 'A confirmar',
+      type: cand.type || 'Festival',
+      status: cand.status || ('Por enviar' as any),
+      link: cand.link,
+      tasks: []
+    });
   }
 
   return result;

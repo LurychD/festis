@@ -24,8 +24,15 @@ npm run test
 - **Librerías de interacción:** `@testing-library/react`, `@testing-library/jest-dom` y `@testing-library/user-event`.
 - **Setup y limpieza:** `src/test/setup.ts` ejecuta `cleanup()` de forma transparente tras cada caso de prueba (`afterEach`).
 - **Suites implementadas:**
+  - `src/test/clipboardQualitySprint.test.tsx`: Pruebas de contrato para caché persistente de 24 horas en localStorage/memoria, expiración determinista con FakeTimers, detección y badge de convocatorias vencidas (`bg-rose-50 text-rose-700`), desmarcado preventivo, edición inline de link/URL, blindaje anti-falsos positivos de co-ocurrencia cinematográfica (descarte de deportes y música), y deduplicación en vivo contra Pool Dual.
+  - `src/test/clipboardAndBadgesHotfix.test.tsx`: Pruebas de contrato para cálculo de antigüedad (`isNewFestival`), casos corruptos o nulos, edición inline por doble-tap, hold-to-confirm de 3s en importación de lotes, aserción estricta de no duplicación de badge en `FestivalDetailsView` e insignias en los submódulos del Dashboard.
+  - `src/test/FestivalClipboardFallback.test.tsx`: Pruebas de cierre de formulario y delegación al gateway universal de lotes ante pegado directo o contingencia manual, y rechazo ante textos corruptos.
+  - `src/test/clipboardParser.test.ts`: Pruebas del motor heurístico de extracción de festivales y deduplicación de 5 capas de Cardigan.
   - `src/test/versionAndBuildInfo.test.ts`: Pruebas de contrato de versionado (`Beta 0.5`), extracción de número y hash de commit de Git, resiliencia en generación de metadatos para Docker/Fly.io y blindaje contra caídas a `"local"` o `"local-dev"`.
+  - `src/test/ProjectsHomeView.test.tsx`: Pruebas de renderizado y selector de obras audiovisuales.
   - `src/test/ProjectMembersPanel.test.tsx`: Smoke test integral sobre la gestión de miembros, validando renderizado de integrantes, generador de invitaciones para rol Propietario, selector de roles (`distribuidor`, `colaborador`, `guest`) y modo solo lectura para usuarios con permisos restringidos.
+  - `src/test/ModalAndSwipeGestures.test.tsx`: Pruebas de ergonomía táctil y gestos móviles.
+- **Resultado de ejecución:** 8 archivos de prueba pasados (100%), 67 tests pasados, 0 fallados.
 
 ---
 

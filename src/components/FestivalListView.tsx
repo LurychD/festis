@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Bell, Search, MapPin, List, Tag, DollarSign, Calendar as CalendarIcon, ExternalLink, ClipboardList, MonitorPlay, RefreshCw, Clipboard } from 'lucide-react';
 import { Festival, FestivalStatus } from '../types';
 import { cn, getStatusColorStyles, getStatusIcon, formatDisplayDate } from '../utils/helpers';
+import { isNewFestival } from '../utils/dateUtils';
 import { INITIAL_FESTIVALS } from '../utils/seedData';
 import { ChangeStatusModal } from './ChangeStatusModal';
 import { useProjectRole } from '../context/ProjectContext';
@@ -83,6 +84,7 @@ export const FestivalListView: React.FC<FestivalListViewProps> = ({
   const { isOwner, isDistributor } = useProjectRole();
   const canManageFestivals = isOwner || isDistributor;
   const canViewFinancials = isOwner || isDistributor;
+  const listToRender = filteredFestivals || festivals || [];
 
   const filterScrollRef = useRef<HTMLDivElement>(null);
   const [isDraggingFilter, setIsDraggingFilter] = useState(false);
@@ -152,7 +154,7 @@ export const FestivalListView: React.FC<FestivalListViewProps> = ({
 
       <div className="w-full flex items-center justify-between mb-4 px-1 gap-2 flex-wrap">
          <p className="text-xs font-bold text-slate-500">
-           <span className="text-[#e91e63] font-black">{filteredFestivals.length}</span> festivales encontrados 
+           <span className="text-[#e91e63] font-black">{listToRender.length}</span> festivales encontrados 
            {filterStatus !== 'all' ? ` bajo el filtro "${filterStatus}"` : ' en total'}
            {dateFilter === 'closing_soon' ? ' (En cierre próx. 30 días)' : ''}
            {dateFilter === 'custom_range' ? ' (Rango de fechas)' : ''}
@@ -170,7 +172,7 @@ export const FestivalListView: React.FC<FestivalListViewProps> = ({
       </div>
 
       <div className="space-y-4 relative min-h-[40vh]">
-        {filteredFestivals.length === 0 && (
+        {listToRender.length === 0 && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-8">
             <div className="h-24 w-24 bg-slate-100 rounded-[2rem] flex items-center justify-center mb-6 transform rotate-3">
               <Search className="h-10 w-10 text-slate-500" />
@@ -187,19 +189,31 @@ export const FestivalListView: React.FC<FestivalListViewProps> = ({
             )}
           </div>
         )}
-        {filteredFestivals.slice(0, displayedCount).map((festival, i) => {
+        {listToRender.slice(0, displayedCount || 100).map((festival, i) => {
           const isClosed = festival.status === FestivalStatus.CERRADO || (festival.status as string) === 'Cerrado';
+          const isNew = isNewFestival(festival.createdAt);
           return (
           <div 
             key={`${festival.id}-${i}`} 
-            className={cn("p-6 rounded-3xl cursor-pointer group hover:scale-[1.02] transition-all border border-white/40 flex flex-col justify-between shadow-lg", getStatusColorStyles(festival.status))}
+            className={cn(
+              "p-6 rounded-3xl cursor-pointer group hover:scale-[1.02] transition-all border flex flex-col justify-between shadow-lg",
+              getStatusColorStyles(festival.status),
+              isNew
+                ? "border-emerald-300 ring-2 ring-emerald-400/30 shadow-sm shadow-emerald-500/10 animate-pulse"
+                : "border-white/40"
+            )}
             onClick={() => { setSelectedFestival(festival); setView('details'); }}
           >
             <div className="flex justify-between items-start mb-3 gap-2">
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-lg leading-tight flex items-start gap-2">
+                <h3 className="font-bold text-lg leading-tight flex items-start gap-2 flex-wrap">
                    <span className="text-slate-400 text-sm mt-0.5 shrink-0">#{i + 1}</span> 
                    <span className="break-words">{highlightText(festival.name, search)}</span>
+                   {isNewFestival(festival.createdAt) && (
+                     <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                       Nuevo
+                     </span>
+                   )}
                 </h3>
                 <div className="flex flex-col gap-1.5 mt-2 text-xs font-semibold opacity-90">
                   <div className="flex flex-wrap gap-x-3 gap-y-1">

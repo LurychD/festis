@@ -160,21 +160,24 @@ describe("FestivalModal - Clipboard Permissions-Policy Fallback & Ergonomics", (
       Link: https://bafici.gob.ar
     `;
 
+    let dispatchedEventDetail: any = null;
+    const eventHandler = (e: any) => {
+      dispatchedEventDetail = e.detail;
+    };
+    window.addEventListener("festis:process-clipboard-text", eventHandler);
+
     fireEvent.change(textarea, { target: { value: rawFestivalText } });
     fireEvent.click(processBtn);
 
-    // Esperar hidratación y cierre del submodal
+    // Esperar cierre del submodal y cierre del formulario principal para dar paso al gateway
     await waitFor(() => {
-      expect(screen.queryByText("Pegar texto del festival")).not.toBeInTheDocument();
+      expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
 
-    // Validar hidratación en el campo de nombre del formulario principal
-    const nameInput = document.getElementById("m-name") as HTMLInputElement;
-    expect(nameInput).not.toBeNull();
-    expect(nameInput.value).toBe("Buenos Aires Festival Internacional de Cine Independiente");
-    expect(mockShowAlert).toHaveBeenCalledWith(
-      "Festival 'Buenos Aires Festival Internacional de Cine Independiente' autocompletado."
-    );
+    expect(dispatchedEventDetail).not.toBeNull();
+    expect(dispatchedEventDetail.text).toBe(rawFestivalText);
+
+    window.removeEventListener("festis:process-clipboard-text", eventHandler);
   });
 
   it("falla con gracia ante texto manual insuficiente o corrupto impidiendo el cierre erróneo", async () => {
@@ -206,7 +209,7 @@ describe("FestivalModal - Clipboard Permissions-Policy Fallback & Ergonomics", (
     expect(screen.getByText("Pegar texto del festival")).toBeInTheDocument();
   });
 
-  it("ejecuta hidratación directa cuando la Clipboard API responde con permisos concedidos", async () => {
+  it("delega la captura al gateway universal y cierra el formulario cuando la Clipboard API responde con permisos concedidos", async () => {
     const validText = `Sitges Film Festival 2026 - Deadline: 2026-08-30 - Spain - Fee: 45 USD - https://sitgesfilmfestival.com`;
 
     Object.defineProperty(navigator, "clipboard", {
@@ -217,20 +220,27 @@ describe("FestivalModal - Clipboard Permissions-Policy Fallback & Ergonomics", (
       writable: true,
     });
 
+    let dispatchedEventDetail: any = null;
+    const eventHandler = (e: any) => {
+      dispatchedEventDetail = e.detail;
+    };
+    window.addEventListener("festis:process-clipboard-text", eventHandler);
+
     renderWithContext(<FestivalModal {...defaultProps} />);
 
     const pasteBtn = screen.getByLabelText("Autocompletar desde portapapeles");
     fireEvent.click(pasteBtn);
 
     await waitFor(() => {
-      const nameInput = document.getElementById("m-name") as HTMLInputElement;
-      expect(nameInput.value).toBe("Sitges - Festival Internacional de Cinema Fantàstic de Catalunya");
+      expect(mockOnClose).toHaveBeenCalledTimes(1);
     });
 
-    // No debe haberse abierto el modal manual porque la lectura directa funcionó
+    expect(dispatchedEventDetail).not.toBeNull();
+    expect(dispatchedEventDetail.text).toBe(validText);
+
+    // No debe haberse abierto el submodal manual porque la lectura directa funcionó
     expect(screen.queryByText("Pegar texto del festival")).not.toBeInTheDocument();
-    expect(mockShowAlert).toHaveBeenCalledWith(
-      "Festival 'Sitges - Festival Internacional de Cinema Fantàstic de Catalunya' autocompletado."
-    );
+
+    window.removeEventListener("festis:process-clipboard-text", eventHandler);
   });
 });

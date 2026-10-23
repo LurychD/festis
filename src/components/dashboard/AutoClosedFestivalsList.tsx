@@ -1,7 +1,8 @@
 import React from 'react';
-import { Festival, FestivalStatus } from '../../types';
+import { Festival } from '../../types';
 import { Lock, ChevronRight, Sparkles } from 'lucide-react';
 import { formatDisplayDate, getStatusIcon } from '../../utils/helpers';
+import { isNewFestival } from '../../utils/dateUtils';
 
 interface AutoClosedFestivalsListProps {
   closedFestivals: Festival[];
@@ -27,9 +28,14 @@ export const AutoClosedFestivalsList: React.FC<AutoClosedFestivalsListProps> = (
               className="p-4 rounded-3xl cursor-pointer hover:bg-slate-200/80 transition-all flex items-center justify-between bg-slate-100/80 backdrop-blur-md border border-slate-300 text-slate-700 shadow-sm"
             >
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                    {getStatusIcon(f.status)}
                    <span className="text-[10px] uppercase font-bold text-slate-600">Cerrado</span>
+                   {isNewFestival(f.createdAt) && (
+                     <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold px-2 py-0.5 rounded-full">
+                       Nuevo
+                     </span>
+                   )}
                    {isAutoClosed && (
                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black bg-slate-200 text-slate-700 border border-slate-300">
                        <Sparkles className="h-2.5 w-2.5 text-slate-500" /> Sistema

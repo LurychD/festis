@@ -6,7 +6,6 @@ import { PlaceAutocomplete } from "./PlaceAutocomplete";
 import { uploadFileToStorage } from "../utils/storageHelpers";
 import { PlatformIcon } from "./PlatformIcon";
 import { useProjectRole } from "../context/ProjectContext";
-import { detectFestivalFromText } from "../utils/clipboardFestivalParser";
 import {
   cn,
   formatDateForInput,
@@ -270,81 +269,6 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
     }
   }, [isOpen, modalType, selectedFestival, platforms]);
 
-  const applyDetectedFestival = (detected: ReturnType<typeof detectFestivalFromText>): boolean => {
-    if (!detected || !detected.name || detected.name === "Festival sin título") {
-      showAlert("No se reconoció información válida de festival.");
-      return false;
-    }
-
-    if (detected.name) {
-      setNameVal(detected.name);
-      const nameEl = document.getElementById("m-name") as HTMLInputElement | null;
-      if (nameEl) nameEl.value = detected.name;
-    }
-
-    if (detected.country && detected.country !== "A confirmar") {
-      setCountryVal(detected.country);
-      const countryEl = document.getElementById("m-country") as HTMLInputElement | null;
-      if (countryEl) countryEl.value = detected.country;
-    }
-
-    if (detected.deadline) {
-      setDeadlineVal(detected.deadline);
-      const deadlineEl = document.getElementById("m-deadline") as HTMLInputElement | null;
-      if (deadlineEl) deadlineEl.value = detected.deadline;
-    }
-
-    if (detected.newsDate) {
-      setNewsVal(detected.newsDate);
-      const newsEl = document.getElementById("m-news") as HTMLInputElement | null;
-      if (newsEl) newsEl.value = detected.newsDate;
-    }
-
-    if (detected.link) {
-      setLinkVal(detected.link);
-      const linkEl = document.getElementById("m-link") as HTMLInputElement | null;
-      if (linkEl) linkEl.value = detected.link;
-    }
-
-    const finalPrice = detected.price || (detected.fee !== undefined ? `${detected.fee}` : "");
-    if (finalPrice) {
-      setPriceVal(finalPrice);
-      const priceEl = document.getElementById("m-price") as HTMLInputElement | null;
-      if (priceEl) priceEl.value = finalPrice;
-    }
-
-    if (detected.platform) {
-      setSelectedPlat(detected.platform);
-      const platEl = document.getElementById("m-plat") as HTMLSelectElement | null;
-      if (platEl) platEl.value = detected.platform;
-    }
-
-    const catEl = document.getElementById("m-cat") as HTMLInputElement | null;
-    if (catEl && detected.category) catEl.value = detected.category;
-
-    const obsEl = document.getElementById("m-obs") as HTMLTextAreaElement | null;
-    if (obsEl) {
-      const notes: string[] = [];
-      if (detected.detectedAccreditations && detected.detectedAccreditations.length > 0) {
-        notes.push(`Sellos: ${detected.detectedAccreditations.join(", ")}`);
-      }
-      if (detected.rawNotes) {
-        notes.push(detected.rawNotes);
-      }
-      if (notes.length > 0) {
-        obsEl.value = notes.join(" | ");
-      }
-    }
-
-    const plocEl = document.getElementById("m-ploc") as HTMLInputElement | null;
-    if (plocEl && (detected.projectionLocation || detected.city)) {
-      plocEl.value = detected.projectionLocation || detected.city || "";
-    }
-
-    showAlert(`Festival '${detected.name}' autocompletado.`);
-    return true;
-  };
-
   const handleAutofillFromClipboard = async () => {
     if (isPastingClipboard) return;
 
@@ -363,17 +287,16 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
       setIsPastingClipboard(true);
       const text = await navigator.clipboard.readText();
       if (!text || text.trim().length < 5) {
-        // Portapapeles vacío o insuficiente: derivar limpiamente al diálogo manual
         setManualPasteText("");
         setShowManualPasteModal(true);
         return;
       }
 
-      const detected = detectFestivalFromText(text);
-      applyDetectedFestival(detected);
+      // Cerrar formulario manual y delegar al gateway universal de lotes
+      onClose();
+      window.dispatchEvent(new CustomEvent('festis:process-clipboard-text', { detail: { text } }));
     } catch (_err) {
-      // Degradación elegante: Permissions-Policy bloqueada (NotAllowedError, SecurityError)
-      // CERO console.error ruidoso en consola; abrir el sub-modal de pegado manual
+      // Degradación elegante ante bloqueo de permisos de portapapeles
       setManualPasteText("");
       setShowManualPasteModal(true);
     } finally {
@@ -386,12 +309,12 @@ export const FestivalModal: React.FC<FestivalModalProps> = ({
       showAlert("El texto pegado es demasiado corto.");
       return;
     }
-    const detected = detectFestivalFromText(manualPasteText);
-    const success = applyDetectedFestival(detected);
-    if (success) {
-      setShowManualPasteModal(false);
-      setManualPasteText("");
-    }
+    const textToProcess = manualPasteText;
+    setShowManualPasteModal(false);
+    setManualPasteText("");
+    // Cerrar formulario manual y delegar al gateway universal de lotes
+    onClose();
+    window.dispatchEvent(new CustomEvent('festis:process-clipboard-text', { detail: { text: textToProcess } }));
   };
 
   const handleClipboardAutocomplete = handleAutofillFromClipboard;

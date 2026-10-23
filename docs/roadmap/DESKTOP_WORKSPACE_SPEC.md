@@ -120,7 +120,11 @@ El layout de escritorio se estructura en una cuadrícula fija con distribución 
 - **Sub-panel Inferior (40% default):**
   - Selector de modo en cabecera: Pastilla conmutadora `[ Calendario | Gantt ]`.
     - **Modo 'Calendario':** Renderiza la grilla mensual clásica de 7 días (`<CalendarView />`) para el control puntual de fechas de cierre y notificaciones.
-    - **Modo 'Gantt':** Renderiza la línea de tiempo horizontal multimes con pistas continuas de deadlines escalonados (*Early*, *Regular*, *Late*).
+    - **Modo 'Gantt':** Renderiza la línea de tiempo horizontal multimes basada estrictamente en los hitos canónicos de la entidad `Festival`:
+      * **Hito de postulación:** Marcador puntual / rombo en `deadline`, complementado con un rango visual previo de preparación de materiales.
+      * **Tramo de deliberación del jurado:** Barra horizontal continua entre la fecha de cierre (`deadline`) y la notificación de resultados (`newsDate`).
+      * **Hito de proyección:** Marcador puntual en `projectionDate` para festivales con estreno o exhibición confirmada.
+      * **Resiliencia ante datos parciales:** Si una convocatoria solo cuenta con `deadline`, el Gantt dibuja exclusivamente ese hito puntual sin fallar ni exigir campos ficticios. Cero alteraciones al modelo de datos de Festis en Firestore.
     - **Persistencia:** Almacenamiento reactivo del modo seleccionado en `localStorage` (clave `festis_subpanel_mode: 'calendar' | 'gantt'`).
 - **Divisor de Redimensión (Resize Handle):**
   - Barra sutil de 6px con línea central y micro-manija de arrastre táctil con cursor `row-resize`.
@@ -160,7 +164,7 @@ La conmutación de presets en la cabecera reconfigura de forma limpia la composi
 
 | Preset | Sub-panel Superior (Centro) | Sub-panel Inferior (Centro) | Panel Derecho (Inspector) |
 | :--- | :--- | :--- | :--- |
-| **[Postulación]** | `<FestivalListView />` (Catálogo de convocatorias y filtros) | Selector `[ Calendario \| Gantt ]`:<br>• **Calendario:** `<CalendarView />` (Grilla mensual de 7 días)<br>• **Gantt:** Timeline horizontal de deadlines escalonados (*Early/Regular/Late*) | `<FestivalDetailsView variant="inspector" />` (Ficha técnica y checklist) |
+| **[Postulación]** | `<FestivalListView />` (Catálogo de convocatorias y filtros) | Selector `[ Calendario \| Gantt ]`:<br>• **Calendario:** `<CalendarView />` (Grilla mensual de 7 días)<br>• **Gantt:** Timeline horizontal de hitos canónicos de Festival (`deadline`, tramo de deliberación hasta `newsDate` y proyección `projectionDate`) | `<FestivalDetailsView variant="inspector" />` (Ficha técnica y checklist) |
 | **[Estrategia]** | `<DistributionPlansView />` o `<DistributionPlanDetailView />` | `<PlanningView />` (Roadmap estratégico de etapas) | `<FilmDataView variant="inspector" />` (Ficha técnica con tabs a `<GalleryView />` y notas) |
 | **[Auditoría]** | `<StatsView />` (Métricas consolidadas y KPIs) | `<ArchiveView />` (Historial de ediciones cerradas) | `<ReportsView variant="inspector" />` (Generador de reportes INCAA y fondos) |
 | **Tablero Ejecutivo (Home)** | `<DashboardView />` montado a ancho completo al pulsar "Inicio" en el rail lateral. | *N/A (Pantalla completa)* | *Opcional / Colapsado por defecto* |

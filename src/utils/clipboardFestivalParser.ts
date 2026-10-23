@@ -108,10 +108,21 @@ export function isLegitimateFestivalTitle(title: string): boolean {
 
   const lower = title.toLowerCase();
 
-  // Si coincide con la semilla canónica
+  // 1. Descarte inmediato ante combinaciones de exclusión contextual (deportes, fútbol, música, comida)
+  const quickExclusions = [
+    /\bfestival\s+de\s+(?:goles|faltas|penales|patadas|errores|atajadas|puntos|tiros|corners?)\b/i,
+    /\b(?:goleada|partido\s+de\s+f[uú]tbol|boca\s+juniors|river\s+plate|la\s+bombonera|el\s+monumental)\b/i,
+    /\bfestival\s+de\s+(?:m[uú]sica|rock|jazz|trap|cumbia|folklore|electr[oó]nica|bandas)\b/i,
+    /\bfestival\s+(?:gastron[oó]mico|de\s+la\s+cerveza|de\s+comida|del\s+asado|del\s+vino)\b/i,
+  ];
+  for (const pattern of quickExclusions) {
+    if (pattern.test(lower)) return false;
+  }
+
+  // 2. Si coincide con la semilla canónica
   if (matchSeedFestival(title)) return true;
 
-  // Términos fuertes que definen un festival o muestra audiovisual
+  // 3. Términos fuertes que definen un festival o muestra audiovisual
   const festivalKeywords = [
     "festival", "fest", "filmfest", "zinemaldia", "muestra", "concurso",
     "certamen", "bienal", "cortometrajes", "short film", "cine", "cinema"
@@ -122,6 +133,16 @@ export function isLegitimateFestivalTitle(title: string): boolean {
     // Descartar si es una frase conversacional
     const nonTitleStarters = /^(si|pero|cuando|porque|donde|recordar|recuerden|atencion|aviso|fijate|mira|hola)/i;
     if (nonTitleStarters.test(lower)) return false;
+
+    // Regla de co-ocurrencia en el título si es genérico:
+    const genericOnly = /^(?:festival|muestra|concurso|certamen|bienal)\s+de\s+[a-z]+/i.test(lower);
+    if (genericOnly) {
+      const hasAudiovisualTerm = /\b(?:cine|cinema|film|films|cortometrajes?|cortos?|largometrajes?|largos?|animaci[oó]n|documental|pel[ií]culas?)\b/i.test(lower);
+      if (!hasAudiovisualTerm) {
+        return false;
+      }
+    }
+
     return true;
   }
 
@@ -538,6 +559,11 @@ export function detectFestivalFromText(text: string, refDate?: string): Extracte
     return { name: "", country: "A confirmar", price: "Gratis" };
   }
 
+  // Filtrado determinista de relevancia cinematográfica
+  if (!hasFestivalRelevance(text)) {
+    return { name: "", country: "A confirmar", price: "Gratis" };
+  }
+
   const stripped = stripHumanPreambleAndNoise(text);
   const isNarrative = stripped.includes("?") || stripped.includes("!") || stripped.split("\n").length <= 2;
 
@@ -548,14 +574,264 @@ export function detectFestivalFromText(text: string, refDate?: string): Extracte
   return parseClipboardFestivalText(stripped, refDate);
 }
 
+export const CONTEXT_EXCLUSION_PATTERNS = [
+  // Deportes / Fútbol / Metáforas deportivas
+  /\bfestival\s+de\s+(?:goles|faltas|penales|patadas|errores|atajadas|puntos|tiros|corners?)\b/i,
+  /\b(?:goleada|partido\s+de\s+f[uú]tbol|boca\s+juniors|river\s+plate|la\s+bombonera|el\s+monumental|copa\s+libertadores)\b/i,
+  /\b(?:jugador|delantero|arquero|mediocampista|dt|director\s+t[eé]cnico|penal|tiro\s+libre)\b/i,
+  // Música / Recitales / Conciertos masivos
+  /\bfestival\s+de\s+(?:m[uú]sica|rock|jazz|trap|cumbia|folklore|electr[oó]nica|bandas)\b/i,
+  /\b(?:recital|concierto|lineup\s+de\s+bandas|lollapalooza|cosqu[ií]n\s+rock|quilmes\s+rock)\b/i,
+  // Gastronomía / Ferias ajenas
+  /\bfestival\s+(?:gastron[oó]mico|de\s+la\s+cerveza|de\s+comida|del\s+asado|del\s+vino)\b/i,
+  /\b(?:food\s*trucks?|cerveza\s+artesanal|degustaci[oó]n|cata\s+de\s+vinos)\b/i,
+  // Artes escénicas ajenas sin audiovisual
+  /\bfestival\s+de\s+(?:teatro|danza|ballet|circo|magia)\b/i
+];
+
+export const AUDIOVISUAL_DOMAIN_TERMS = [
+  /\b(?:cine|cinema|cinematogr[aá]fic[oa]|filmmaker|filmmaking)\b/i,
+  /\b(?:film|films|filmfest|filmfestival|zinemaldia)\b/i,
+  /\b(?:pel[ií]cula|pel[ií]culas|motion\s+picture)\b/i,
+  /\b(?:cortometraje|cortometrajes|cortos?|short\s+film|shortfilms?)\b/i,
+  /\b(?:largometraje|largometrajes|largos?|feature\s+film)\b/i,
+  /\b(?:animaci[oó]n|animation|documental|documentales|documentary)\b/i,
+  /\b(?:filmfreeway|festhome|shortfilmdepot|movibeta|clickforfestivals)\b/i,
+  /\b(?:laurel|laurels|palmar[eé]s|premiere|estreno|secci[oó]n\s+oficial|selecci[oó]n\s+oficial)\b/i,
+  /\b(?:jurado|bases\s+y\s+condiciones|reglamento|arancel|entry\s+fee|submission\s+fee)\b/i,
+  /\b(?:call\s+for\s+entries|submissions?|early\s+bird|entry\s+deadline|fecha\s+l[ií]mite|cierre\s+de\s+convocatoria)\b/i
+];
+
+export const GENERIC_CALL_TERMS = [
+  /\b(?:festival|festi)\b/i,
+  /\b(?:convocatoria|convocatorias|postulaci[oó]n|postulaciones|inscripci[oó]n|inscribir)\b/i,
+  /\b(?:muestra|concurso|certamen|bienal|competencia)\b/i
+];
+
+/**
+ * Valida de forma determinista si un texto posee relevancia como convocatoria cinematográfica.
+ * Bloquea código fuente, reportes de QA y metáforas ajenas (ej. deportes, fútbol, recitales).
+ */
+export function hasFestivalRelevance(text: string): boolean {
+  if (!text || typeof text !== 'string') return false;
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+
+  // 1. Si coincide directamente con el catálogo semilla canónico (ej. Sitges, Cannes, BAFICI)
+  if (matchSeedFestival(trimmed)) {
+    return true;
+  }
+
+  if (trimmed.length < 15) return false;
+
+  // 2. Detección estricta de código fuente, trazas técnicas y reportes internos
+  const codeAndTechnicalPatterns = [
+    /\b(?:import\s+.*from|export\s+(?:const|function|interface|type|class|default))\b/i,
+    /\b(?:const|let|var)\s+[a-zA-Z0-9_$]+\s*[:=]/,
+    /\b(?:interface|type)\s+[A-Z][a-zA-Z0-9_$]+\s*[{=]/,
+    /\b(?:function\s+[a-zA-Z0-9_$]+\s*\(|=>\s*\{|\(\)\s*=>)/,
+    /\b(?:React\.FC|useState|useEffect|useRef|useMemo|useCallback)\b/,
+    /<(?:div|span|button|h[1-6]|p|input|motion\.[a-z]+)\b/i,
+    /\b(?:className=|style=|onClick=|onChange=)/,
+    /\b(?:REPORTE DE AUDITORÍA|CONTROL DE CALIDAD|QA Suite|Vitest|passed|failed|test files)\b/i,
+    /\b(?:error TS\d+|stack trace|at\s+[a-zA-Z0-9_$.]+\s*\(|node_modules)\b/i,
+    /\b(?:FestivalModal|FestivalListView|BatchClipboardDetectionModal|ProcessingExtractionModal)\b/,
+  ];
+
+  for (const pattern of codeAndTechnicalPatterns) {
+    if (pattern.test(trimmed)) {
+      return false;
+    }
+  }
+
+  // 3. Filtro de exclusión contextual temprana (metáforas deportivas, fútbol, recitales, gastronomía)
+  for (const pattern of CONTEXT_EXCLUSION_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      return false;
+    }
+  }
+
+  // 4. Regla estricta de Co-ocurrencia Audiovisual:
+  // La presencia de términos genéricos ('festival', 'muestra', 'concurso', 'certamen')
+  // SOLO es válida si coexiste con al menos un término del dominio cinematográfico
+  const hasGenericCallTerm = GENERIC_CALL_TERMS.some((regex) => regex.test(trimmed));
+  const hasAudiovisualDomainTerm = AUDIOVISUAL_DOMAIN_TERMS.some((regex) => regex.test(trimmed));
+
+  return hasGenericCallTerm && hasAudiovisualDomainTerm;
+}
+
 /**
  * Función principal para extraer múltiples festivales (utilizada por el pipeline de lotes).
  */
 export function detectMultipleFestivalsFromText(text: string, refDate?: string): ExtractedFestivalCandidate[] {
-  if (!text || !text.trim()) return [];
+  if (!text || !text.trim() || !hasFestivalRelevance(text)) return [];
 
   const blocks = smartSegmentBatchText(text);
   return blocks.map((b) => detectFestivalFromText(b, refDate));
+}
+
+export const PERSISTENT_CACHE_STORAGE_KEY = 'festis_clipboard_cache_v1';
+export const PERSISTENT_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 horas (86.400.000 ms)
+export const MAX_PERSISTENT_ENTRIES = 50;
+
+export interface PersistentCacheEntry {
+  hashKey: string;
+  rawText: string;
+  items: ExtractedFestivalCandidate[];
+  totalDetected: number;
+  timestamp: number;
+  expiresAt: number;
+}
+
+const memoryCache = new Map<string, PersistentCacheEntry>();
+
+/**
+ * Normaliza el texto para generar una clave única de caché
+ */
+export function normalizeClipboardTextForCache(text: string, refDate?: string): string {
+  const norm = text.trim().toLowerCase().replace(/\s+/g, ' ');
+  return `${refDate || ''}:::${norm}`;
+}
+
+export function loadPersistentClipboardCache(): PersistentCacheEntry[] {
+  if (typeof window === 'undefined' || !window.localStorage) return [];
+  try {
+    const raw = localStorage.getItem(PERSISTENT_CACHE_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    const now = Date.now();
+    const valid = parsed.filter((e) => e && typeof e.expiresAt === 'number' && e.expiresAt > now);
+    if (valid.length !== parsed.length) {
+      localStorage.setItem(PERSISTENT_CACHE_STORAGE_KEY, JSON.stringify(valid));
+    }
+    return valid;
+  } catch {
+    return [];
+  }
+}
+
+export function savePersistentClipboardCache(entries: PersistentCacheEntry[]): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    const trimmed = entries.slice(-MAX_PERSISTENT_ENTRIES);
+    localStorage.setItem(PERSISTENT_CACHE_STORAGE_KEY, JSON.stringify(trimmed));
+  } catch {
+    // Manejo defensivo ante almacenamiento lleno
+  }
+}
+
+/**
+ * Limpia el caché en memoria y en localStorage
+ */
+export function clearClipboardMemoryCache(): void {
+  memoryCache.clear();
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      localStorage.removeItem(PERSISTENT_CACHE_STORAGE_KEY);
+    } catch {}
+  }
+}
+
+export function clearPersistentClipboardCache(): void {
+  clearClipboardMemoryCache();
+}
+
+/**
+ * Consulta el resultado en caché persistente o en memoria si aún está vigente
+ */
+export function getCachedClipboardResult(rawClipboard: string, refDate?: string): {
+  items: ExtractedFestivalCandidate[];
+  totalDetected: number;
+} | null {
+  if (!rawClipboard) return null;
+  const key = normalizeClipboardTextForCache(rawClipboard, refDate);
+
+  // 1. Memoria rápida
+  const memEntry = memoryCache.get(key);
+  if (memEntry) {
+    if (Date.now() > memEntry.expiresAt) {
+      memoryCache.delete(key);
+    } else {
+      return {
+        items: memEntry.items.map((i) => ({ ...i })),
+        totalDetected: memEntry.totalDetected,
+      };
+    }
+  }
+
+  // 2. LocalStorage persistente (24h)
+  const persistentEntries = loadPersistentClipboardCache();
+  const persistentEntry = persistentEntries.find((e) => e.hashKey === key);
+  if (persistentEntry) {
+    if (Date.now() <= persistentEntry.expiresAt) {
+      memoryCache.set(key, persistentEntry);
+      return {
+        items: persistentEntry.items.map((i) => ({ ...i })),
+        totalDetected: persistentEntry.totalDetected,
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Guarda en caché persistente de 24 horas y en memoria el resultado estructurado
+ */
+export function setCachedClipboardResult(
+  rawClipboard: string,
+  result: { items: ExtractedFestivalCandidate[]; totalDetected: number },
+  refDate?: string
+): void {
+  if (!rawClipboard) return;
+  const key = normalizeClipboardTextForCache(rawClipboard, refDate);
+  const now = Date.now();
+  const expiresAt = now + PERSISTENT_CACHE_TTL_MS;
+
+  const newEntry: PersistentCacheEntry = {
+    hashKey: key,
+    rawText: rawClipboard.slice(0, 300),
+    items: result.items.map((i) => ({ ...i })),
+    totalDetected: result.totalDetected,
+    timestamp: now,
+    expiresAt,
+  };
+
+  // Guardar en memoria (límite FIFO)
+  if (memoryCache.size >= MAX_PERSISTENT_ENTRIES) {
+    const firstKey = memoryCache.keys().next().value;
+    if (firstKey) memoryCache.delete(firstKey);
+  }
+  memoryCache.set(key, newEntry);
+
+  // Guardar en localStorage
+  const existing = loadPersistentClipboardCache().filter((e) => e.hashKey !== key);
+  existing.push(newEntry);
+  savePersistentClipboardCache(existing);
+}
+
+/**
+ * Recupera todos los candidatos analizados durante las últimas 24 horas para deduplicación dual
+ */
+export function getAllCachedFestivalCandidatesFromToday(): ExtractedFestivalCandidate[] {
+  const entries = loadPersistentClipboardCache();
+  const all: ExtractedFestivalCandidate[] = [];
+  const seenNames = new Set<string>();
+
+  for (const entry of entries) {
+    if (Array.isArray(entry.items)) {
+      for (const item of entry.items) {
+        const normName = (item.name || '').toLowerCase().trim();
+        if (normName && !seenNames.has(normName)) {
+          seenNames.add(normName);
+          all.push(item);
+        }
+      }
+    }
+  }
+
+  return all;
 }
 
 /**
@@ -570,16 +846,31 @@ export async function parseClipboardContent(rawClipboard: string, refDate?: stri
     return { items: [], totalDetected: 0 };
   }
 
+  // Filtro de relevancia de dominio y regla de co-ocurrencia
+  if (!hasFestivalRelevance(rawClipboard)) {
+    return { items: [], totalDetected: 0 };
+  }
+
+  // 0. Consulta de caché persistente de 24h anti-consumo de cuota
+  const cached = getCachedClipboardResult(rawClipboard, refDate);
+  if (cached) {
+    return cached;
+  }
+
   // 1. Intentar enriquecimiento en backend con fallback suave
   try {
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 2000) : null;
     const res = await fetch("/api/parse-festivals-batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: controller?.signal,
       body: JSON.stringify({
         rawText: rawClipboard,
         fechaReferencia: refDate || new Date().toISOString().split("T")[0]
       })
     });
+    if (timeoutId) clearTimeout(timeoutId);
 
     if (res.ok) {
       const json = await res.json();
@@ -596,11 +887,13 @@ export async function parseClipboardContent(rawClipboard: string, refDate?: stri
           fee: typeof item.fee === "number" ? item.fee : undefined,
           category: item.category || "Cortometraje",
           status: FestivalStatus.POR_ENVIAR,
-          type: "Festival🎬",
+          type: "Festival",
           detectedAccreditations: item.accreditations || [],
           extractionConfidence: 0.95
         }));
-        return { items: mapped, totalDetected: mapped.length };
+        const finalResult = { items: mapped, totalDetected: mapped.length };
+        setCachedClipboardResult(rawClipboard, finalResult, refDate);
+        return finalResult;
       }
     }
   } catch {
@@ -609,8 +902,12 @@ export async function parseClipboardContent(rawClipboard: string, refDate?: stri
 
   // 2. Procesamiento local determinista
   const localItems = detectMultipleFestivalsFromText(rawClipboard, refDate);
-  return {
+  const localResult = {
     items: localItems,
     totalDetected: localItems.length
   };
+  setCachedClipboardResult(rawClipboard, localResult, refDate);
+  return localResult;
 }
+
+

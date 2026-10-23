@@ -3,6 +3,7 @@ import { Festival } from '../../types';
 import { Pin, Hourglass } from 'lucide-react';
 import { formatDisplayDate, getStatusColorStyles } from '../../utils/helpers';
 import { cn } from '../../utils/helpers';
+import { isNewFestival } from '../../utils/dateUtils';
 
 // Ensure we have same getRelevantDateForPinned logic
 const getRelevantDateForPinned = (f: Festival) => {
@@ -45,7 +46,14 @@ export const PinnedFestivalsList: React.FC<PinnedFestivalsListProps> = ({ pinned
             )}
           >
             <div className="flex-1 pr-2">
-              <h4 className="font-bold text-base tracking-tight leading-tight mb-1">{f.name}</h4>
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <h4 className="font-bold text-base tracking-tight leading-tight">{f.name}</h4>
+                {isNewFestival(f.createdAt) && (
+                  <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                    Nuevo
+                  </span>
+                )}
+              </div>
               <span className="text-[10px] uppercase font-bold opacity-80">{f.country} • {f.type}{f.category ? ` • ${f.category}` : ''}</span>
               {(() => {
                 const relDate = getRelevantDateForPinned(f);

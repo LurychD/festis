@@ -6,6 +6,7 @@ import { format } from 'date-fns';
 import { useFirestoreSyncArray } from '../../hooks/useFirestoreSync';
 import { SocialPost } from '../../types';
 import { cn } from '../../utils/helpers';
+import { isNewFestival } from '../../utils/dateUtils';
 
 export interface AgendaItem {
   id: string;
@@ -25,6 +26,7 @@ interface TodaysAgendaListProps {
 export const TodaysAgendaList: React.FC<TodaysAgendaListProps> = ({ agendaItems, userName, onSelectFestival, setView }) => {
   const [socialPosts] = useFirestoreSyncArray<SocialPost>("social_posts");
   const pendingPostsCount = socialPosts.filter(p => p.status === 'pending' || p.status === 'draft').length;
+  
   const renderSocialCard = () => {
     if (!setView) return null;
     return (
@@ -80,8 +82,7 @@ export const TodaysAgendaList: React.FC<TodaysAgendaListProps> = ({ agendaItems,
         {renderSocialCard()}
         <div className="px-6 py-8 rounded-3xl glass border border-white/40 flex flex-col items-center justify-center text-center shadow-md">
           <h3 className="text-sm font-medium flex items-center gap-3 text-slate-600">
-            <span className="text-2xl">😴</span>
-            <span className="text-left">Hola {userName}.<br/> Hoy no hay nada (que aburrido).</span>
+            <span className="text-left font-semibold">Hola {userName}. Hoy no hay eventos en la agenda.</span>
           </h3>
         </div>
       </div>
@@ -124,7 +125,14 @@ export const TodaysAgendaList: React.FC<TodaysAgendaListProps> = ({ agendaItems,
                              CERRADO
                           </span>
                        </div>
-                       <p className="font-black text-sm uppercase mt-1 leading-tight pr-4 text-slate-900">{f.name}</p>
+                       <div className="flex items-center gap-2 flex-wrap mt-1">
+                         <p className="font-black text-sm uppercase leading-tight pr-2 text-slate-900">{f.name}</p>
+                         {isNewFestival(f?.createdAt) && (
+                           <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                             Nuevo
+                           </span>
+                         )}
+                       </div>
                        <p className="text-[11px] font-medium opacity-90 mt-1 text-slate-700">
                          Plataforma: {f.platform || 'N/A'} • {f.price ? `${f.price}` : 'Gratis'}
                        </p>
@@ -166,7 +174,14 @@ export const TodaysAgendaList: React.FC<TodaysAgendaListProps> = ({ agendaItems,
                             </span>
                           </div>
                        </div>
-                       <p className="font-black text-sm uppercase mt-1 leading-tight pr-4 text-emerald-950">{f.name}</p>
+                       <div className="flex items-center gap-2 flex-wrap mt-1">
+                         <p className="font-black text-sm uppercase leading-tight pr-2 text-emerald-950">{f.name}</p>
+                         {isNewFestival(f?.createdAt) && (
+                           <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                             Nuevo
+                           </span>
+                         )}
+                       </div>
                        <p className="text-[11px] font-medium opacity-90 mt-1 text-emerald-800">
                          Plataforma: {f.platform || 'N/A'} • {f.price ? `${f.price}` : 'Gratis'}
                          {timeSince ? ` • Enviado ${timeSince}` : ''}
@@ -211,7 +226,14 @@ export const TodaysAgendaList: React.FC<TodaysAgendaListProps> = ({ agendaItems,
                           <Clock className="h-3 w-3" /> PENDIENTE ({f.status || 'Por enviar'})
                         </span>
                      </div>
-                     <p className="font-black text-sm uppercase mt-1 leading-tight pr-4" style={{ color: '#870633' }}>{f.name}</p>
+                     <div className="flex items-center gap-2 flex-wrap mt-1">
+                       <p className="font-black text-sm uppercase leading-tight pr-2" style={{ color: '#870633' }}>{f.name}</p>
+                       {isNewFestival(f?.createdAt) && (
+                         <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                           Nuevo
+                         </span>
+                       )}
+                     </div>
                      <p className="text-[11px] font-medium opacity-90 mt-1" style={{ color: '#870633' }}>Plataforma: {f.platform || 'N/A'} • {f.price ? `${f.price}` : 'Gratis'}</p>
                      
                      <div className="mt-3 flex justify-end">
@@ -251,9 +273,16 @@ export const TodaysAgendaList: React.FC<TodaysAgendaListProps> = ({ agendaItems,
                          <Projector className="h-4 w-4" style={{ color: '#b07c17' }} />
                          <span className="text-[11px] font-bold" style={{ color: '#b07c17' }}>Se proyecta(n):</span>
                       </div>
-                      <p className="font-black text-sm uppercase leading-tight pr-4" style={{ color: '#9a3900' }}>
-                        {f.name}
-                      </p>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-black text-sm uppercase leading-tight pr-2" style={{ color: '#9a3900' }}>
+                          {f.name}
+                        </p>
+                        {isNewFestival(f?.createdAt) && (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                            Nuevo
+                          </span>
+                        )}
+                      </div>
                       
                       {timeStr && (
                         <div className="flex items-center gap-1 mt-1">
@@ -323,9 +352,16 @@ export const TodaysAgendaList: React.FC<TodaysAgendaListProps> = ({ agendaItems,
                    <div>
                       <div className="flex items-center gap-2">
                          <Megaphone className="h-4 w-4" style={{ color: '#059669' }} />
-                         <span className="text-[11px] font-bold" style={{ color: '#059669' }}>Notifica (n) :</span>
+                         <span className="text-[11px] font-bold" style={{ color: '#059669' }}>Notificación:</span>
                       </div>
-                      <p className="font-black text-sm uppercase mt-1 leading-tight pr-4" style={{ color: '#006d0d' }}>{f.name}</p>
+                      <div className="flex items-center gap-2 flex-wrap mt-1">
+                        <p className="font-black text-sm uppercase leading-tight pr-2" style={{ color: '#006d0d' }}>{f.name}</p>
+                        {isNewFestival(f?.createdAt) && (
+                          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0">
+                            Nuevo
+                          </span>
+                        )}
+                      </div>
                       <p className="text-[11px] font-medium opacity-90 mt-1" style={{ color: '#006d0d' }}>{f.country}</p>
                    </div>
                    <ChevronRight className="h-4 w-4 opacity-50 shrink-0" />

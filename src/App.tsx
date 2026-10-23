@@ -5,7 +5,7 @@ import { HandDrawnHome, HandDrawnList, HandDrawnTasks, HandDrawnCalendar, HandDr
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { PaperTexture, HalftoneCmyk, SimplexNoise } from "@paper-design/shaders-react";
 import { useFirestoreSyncArray } from "./hooks/useFirestoreSync";
 import { useFirestoreSyncDoc } from "./hooks/useFirestoreSyncDoc";
@@ -116,7 +116,7 @@ import { ThemeDesignSystemShowcaseView } from "./components/ThemeDesignSystemSho
 import { DistributionPlansView } from "./components/DistributionPlansView";
 import { DistributionPlanDetailView } from "./components/DistributionPlanDetailView";
 import { ErrorBoundary } from "./components/ErrorBoundary";
-import { parseClipboardContent } from "./utils/clipboardFestivalParser";
+import { parseClipboardContent, getAllCachedFestivalCandidatesFromToday } from "./utils/clipboardFestivalParser";
 import { deduplicateBatch } from "./utils/clipboardDeduplicator";
 import { ProcessingExtractionModal } from "./components/modals/ProcessingExtractionModal";
 import { BatchClipboardDetectionModal, BatchItemCandidate } from "./components/modals/BatchClipboardDetectionModal";
@@ -265,7 +265,6 @@ import { PlaceAutocomplete } from "./components/PlaceAutocomplete";
 import { useShaderParams } from "./hooks/useShaderParams";
 
 export default function App() {
-  console.log("APP IS RENDERING.");
   const [view, setViewOriginal] = useState<View>(() => {
     try {
       if (
@@ -348,7 +347,6 @@ export default function App() {
   };
 
   const showToast = (msg: string) => {
-    if (!localDevSettings.showToasts) return;
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
@@ -500,8 +498,11 @@ export default function App() {
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
 
   // Generador dinámico de rutas de subcolección según el proyecto activo
-  const subCollectionPath = (sub: string) =>
-    currentProject ? `projects/${currentProject.id}/${sub}` : `_disabled_${sub}`;
+  const currentProjectId = currentProject?.id;
+  const subCollectionPath = useCallback(
+    (sub: string) => (currentProjectId ? `projects/${currentProjectId}/${sub}` : `_disabled_${sub}`),
+    [currentProjectId]
+  );
 
   const [festivals, setFestivals, isFestivalsLoading] = useFirestoreSyncArray<Festival>(
     subCollectionPath("festivals"),
@@ -547,30 +548,52 @@ export default function App() {
   const [isBatchDetectionModalOpen, setIsBatchDetectionModalOpen] = useState(false);
   const [batchCandidates, setBatchCandidates] = useState<BatchItemCandidate[]>([]);
 
+  const currentProjectRef = useRef(currentProject);
+  currentProjectRef.current = currentProject;
+  const festivalsRef = useRef(festivals);
+  festivalsRef.current = festivals;
+
   const processClipboardText = async (rawText: string) => {
-    if (!rawText || !rawText.trim() || !currentProject) return;
+    if (!rawText || !rawText.trim()) {
+      showToast('No se identificaron convocatorias válidas en el texto copiado.');
+      return;
+    }
+
+    if (!currentProjectRef.current) {
+      showToast('Debes seleccionar o crear una obra audiovisual primero.');
+      return;
+    }
 
     try {
+      setIsModalOpen(false);
       setIsExtractingModalOpen(true);
       setExtractionStep(1);
       setExtractionStatus('Saneando y normalizando texto del portapapeles...');
-      await new Promise((r) => setTimeout(r, 120));
+      await new Promise((r) => setTimeout(r, 60));
 
       setExtractionStep(2);
       setExtractionStatus('Extrayendo fechas, plataformas y tasas...');
       const parsed = await parseClipboardContent(rawText);
 
+      // Si no se identificaron candidatos o falló el filtro de relevancia
+      if (!parsed || !parsed.items || parsed.items.length === 0) {
+        setIsExtractingModalOpen(false);
+        showToast('No se identificaron convocatorias válidas en el texto copiado.');
+        return;
+      }
+
       setExtractionStep(3);
       setExtractionStatus('Cotejando contra el catálogo canónico de festivales...');
-      await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 60));
 
       setExtractionStep(4);
       setExtractionStatus('Ejecutando deduplicación de 5 capas contra la obra...');
-      const deduplicated = deduplicateBatch(parsed.items, festivals);
+      const dailyCached = getAllCachedFestivalCandidatesFromToday();
+      const deduplicated = deduplicateBatch(parsed.items, festivalsRef.current, dailyCached);
 
       setExtractionStep(5);
       setExtractionStatus('Estructurando lote para revisión...');
-      await new Promise((r) => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 80));
 
       setIsExtractingModalOpen(false);
 
@@ -578,18 +601,21 @@ export default function App() {
         setBatchCandidates(deduplicated);
         setIsBatchDetectionModalOpen(true);
       } else {
-        showToast('No se identificaron convocatorias válidas en el texto.');
+        showToast('No se identificaron convocatorias válidas en el texto copiado.');
       }
     } catch (err) {
       console.error('Error al procesar portapapeles:', err);
       setIsExtractingModalOpen(false);
-      showToast('Ocurrió un error al analizar el portapapeles.');
+      showToast('No se identificaron convocatorias válidas en el texto copiado.');
     }
   };
 
+  const processClipboardTextRef = useRef(processClipboardText);
+  processClipboardTextRef.current = processClipboardText;
+
   useEffect(() => {
     const handlePaste = (e: ClipboardEvent) => {
-      if (!currentProject) return;
+      if (!currentProjectRef.current) return;
 
       const target = e.target as HTMLElement | null;
       if (target && typeof target.tagName === 'string') {
@@ -600,13 +626,13 @@ export default function App() {
       }
 
       const text = e.clipboardData?.getData('text');
-      if (text && text.trim().length > 10) {
-        processClipboardText(text);
+      if (text && text.trim().length > 5) {
+        processClipboardTextRef.current(text);
       }
     };
 
     const handleCustomTrigger = async () => {
-      if (!currentProject) {
+      if (!currentProjectRef.current) {
         showToast('Debes seleccionar o crear una obra audiovisual primero.');
         return;
       }
@@ -614,7 +640,7 @@ export default function App() {
         if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
           const text = await navigator.clipboard.readText();
           if (text && text.trim().length > 5) {
-            processClipboardText(text);
+            processClipboardTextRef.current(text);
           } else {
             showToast('El portapapeles está vacío o no contiene texto legible.');
           }
@@ -626,14 +652,25 @@ export default function App() {
       }
     };
 
+    const handleProcessClipboardTextEvent = (e: Event) => {
+      const customEvt = e as CustomEvent<{ text?: string }>;
+      const text = customEvt.detail?.text;
+      if (text && text.trim().length > 5) {
+        setIsModalOpen(false);
+        processClipboardTextRef.current(text);
+      }
+    };
+
     window.addEventListener('paste', handlePaste);
     window.addEventListener('festis:trigger-clipboard-capture', handleCustomTrigger);
+    window.addEventListener('festis:process-clipboard-text', handleProcessClipboardTextEvent);
 
     return () => {
       window.removeEventListener('paste', handlePaste);
       window.removeEventListener('festis:trigger-clipboard-capture', handleCustomTrigger);
+      window.removeEventListener('festis:process-clipboard-text', handleProcessClipboardTextEvent);
     };
-  }, [currentProject, festivals]);
+  }, []);
   const [notifications, setNotifications] = useLocalSyncArray<Notification>(
     "notifications",
     [],
@@ -3735,7 +3772,13 @@ export default function App() {
         candidates={batchCandidates}
         onConfirm={async (approvedFestivals) => {
           await setFestivals((prev) => [...approvedFestivals, ...prev]);
-          showToast(`${approvedFestivals.length} festival(es) importado(s) exitosamente.`);
+          showToast(`${approvedFestivals.length} ${approvedFestivals.length === 1 ? 'festival importado' : 'festivales importados'} exitosamente.`);
+        }}
+        onUpdateExistingFestival={async (updatedFestival) => {
+          await setFestivals((prev) =>
+            prev.map((f) => (f.id === updatedFestival.id ? { ...f, ...updatedFestival } : f))
+          );
+          showToast(`Festival "${updatedFestival.name}" actualizado exitosamente.`);
         }}
       />
 
